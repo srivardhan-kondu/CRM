@@ -1,0 +1,97 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791266858566,
+      "tag": "0000_identity_tenancy_authz",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791266858818,
+      "tag": "0001_audit_append_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791278194037,
+      "tag": "0002_academic_structure_students",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791278211687,
+      "tag": "0003_tenant_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791282570284,
+      "tag": "0004_attendance",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791282602755,
+      "tag": "0005_attendance_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791290154579,
+      "tag": "0006_attendance_tally",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791290155190,
+      "tag": "0007_attendance_tally_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791291399837,
+      "tag": "0008_exams",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791291400142,
+      "tag": "0009_exams_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791292693718,
+      "tag": "0010_assessment_mark_delete",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791294732917,
+      "tag": "0011_communication",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791294737963,
+      "tag": "0012_communication_rls",
+      "breakpoints": true
+    }
+  ]
+}
