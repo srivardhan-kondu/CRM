@@ -75,6 +75,8 @@ export const announcement = pgTable(
     /** Module from a later phase this notice points to ("Register" → placements), shown disabled until then. */
     ctaLabel: text(),
     ctaPhase: integer(),
+    /** Publish no earlier than this (scheduled publishing); the notice stays out of inboxes until then. */
+    scheduledFor: timestamp({ withTimezone: true }),
     status: announcementStatus().notNull().default("draft"),
     /** Null for notices from offices without an account (seeded "Accounts Office"). */
     authorId: uuid().references(() => appUser.id),

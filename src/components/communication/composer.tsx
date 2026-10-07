@@ -17,7 +17,14 @@ import { Button } from "@/components/ui/button";
 import { FormError, useResultAction } from "@/components/ui/form";
 import { Input, Label, Select } from "@/components/ui/input";
 import type { TargetOption } from "@/domains/announcements/repository";
-import { ATTACHMENT_TYPES, GROUP_LABEL, LIMITS, publishRoute } from "@/domains/announcements/rules";
+import type { AudienceChoice } from "@/domains/announcements/repository";
+import {
+  ATTACHMENT_TYPES,
+  GROUP_LABEL,
+  LIMITS,
+  publishRoute,
+  STAFF_ROLES,
+} from "@/domains/announcements/rules";
 import {
   AUDIENCE_GROUPS,
   CATEGORIES,
@@ -39,7 +46,8 @@ export interface ComposerInitial {
   category: AnnouncementCategory;
   severity: Severity;
   target: string;
-  audience: AudienceGroup;
+  audience: AudienceChoice;
+  publishAt: string;
   deadline: string;
   expiresAt: string;
   requiresAck: boolean;
@@ -49,7 +57,9 @@ export interface ComposerInitial {
 }
 
 /** A rule with the same target and audience as the form, for the policy preview (labels don't matter here). */
-function previewRule(target: string, audience: AudienceGroup): AudienceRule {
+function previewRule(target: string, choice: AudienceChoice): AudienceRule {
+  if (choice.startsWith("role:")) return { kind: "role", roleKey: choice.slice(5), unitCode: target };
+  const audience = choice as AudienceGroup;
   return target.startsWith("section:")
     ? { kind: "section", sectionId: target.slice(8), audience }
     : { kind: "institution", audience };
@@ -69,12 +79,15 @@ export function Composer({
     router.push("/announcements/sent"),
   );
   const [target, setTarget] = useState(initial?.target ?? targets[0]!.key);
-  const [audience, setAudience] = useState<AudienceGroup>(initial?.audience ?? "students");
+  const [audience, setAudience] = useState<AudienceChoice>(initial?.audience ?? "students");
+  const [role, setRole] = useState<string>(
+    initial?.audience.startsWith("role:") ? initial.audience.slice(5) : STAFF_ROLES[0].key,
+  );
   const [severity, setSeverity] = useState<Severity>(initial?.severity ?? "normal");
   const [sendEmail, setSendEmail] = useState(initial?.sendEmail ?? false);
   const option = targets.find((t) => t.key === target) ?? targets[0]!;
   const rule = previewRule(option.key, audience);
-  const route = publishRoute(rule, severity, option.authority);
+  const route = publishRoute(rule, severity, option.authority, option.key.startsWith("section:"));
   const emailable = includes(rule, "students") || includes(rule, "guardians");
 
   const groups = useMemo(() => {
@@ -86,7 +99,11 @@ export function Composer({
   const reach = [
     includes(rule, "students") ? `${formatNumber(option.students)} students` : null,
     includes(rule, "guardians") ? `${formatNumber(option.guardians)} guardian households` : null,
-    includes(rule, "staff") ? "staff in this scope" : null,
+    rule.kind === "role"
+      ? `${STAFF_ROLES.find((r) => r.key === rule.roleKey)?.label.toLowerCase() ?? "staff"} in this scope`
+      : includes(rule, "staff")
+        ? "staff in this scope"
+        : null,
   ].filter(Boolean);
   const missingEmails = includes(rule, "guardians") ? option.guardians - option.guardianEmails : 0;
 
@@ -172,6 +189,16 @@ export function Composer({
             />
           </div>
           <div className="space-y-1.5">
+            <Label htmlFor="n-publish">Publish at (optional — leave empty to publish now)</Label>
+            <Input
+              id="n-publish"
+              name="publishAt"
+              type="datetime-local"
+              min={minDate}
+              defaultValue={initial?.publishAt}
+            />
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="n-expires">Active until (optional)</Label>
             <Input
               id="n-expires"
@@ -239,6 +266,31 @@ export function Composer({
                 </label>
               );
             })}
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="audience"
+                value={`role:${role}`}
+                checked={audience.startsWith("role:")}
+                onChange={() => setAudience(`role:${role}`)}
+              />
+              Staff with the role
+              <Select
+                aria-label="Staff role"
+                value={role}
+                onChange={(e) => {
+                  setRole(e.target.value);
+                  if (audience.startsWith("role:")) setAudience(`role:${e.target.value}`);
+                }}
+                className="h-7 w-auto py-0 text-xs"
+              >
+                {STAFF_ROLES.map((r) => (
+                  <option key={r.key} value={r.key}>
+                    {r.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
           </fieldset>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="requiresAck" defaultChecked={initial?.requiresAck} /> Ask recipients

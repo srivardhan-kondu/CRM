@@ -15,6 +15,7 @@ export type Recipient = "students" | "guardians" | "staff";
 /** Does the rule's audience include this group of people? */
 export function includes(rule: AudienceRule, who: Recipient): boolean {
   if (rule.kind === "placement_eligible") return who === "students";
+  if (rule.kind === "role") return who === "staff";
   const groups: Record<AudienceGroup, readonly Recipient[]> = {
     everyone: ["students", "guardians", "staff"],
     families: ["students", "guardians"],
@@ -36,6 +37,8 @@ export type StudentPlacement = Pick<Student, "departmentCode" | "year" | "sectio
 export interface Viewer {
   tree: OrgTree;
   staffUnits: readonly OrgNode[];
+  /** Each staff assignment's role and unit, for notices addressed to a role. */
+  staffRoles?: readonly { roleKey: string; unit: OrgNode }[];
   students: readonly (StudentPlacement & { id: string; relation: "self" | "guardian" })[];
 }
 
@@ -44,6 +47,10 @@ export function targetsStudent(rule: AudienceRule, s: StudentPlacement): boolean
   switch (rule.kind) {
     case "institution":
       return true;
+    case "campus":
+      return (rule.departmentCodes as readonly string[]).includes(s.departmentCode);
+    case "role":
+      return false;
     case "department":
       return rule.departmentCode === s.departmentCode;
     case "year":
@@ -71,6 +78,14 @@ function overlapsStaff(rule: AudienceRule, unit: OrgNode, tree: OrgTree): boolea
   switch (rule.kind) {
     case "institution":
       return true;
+    case "campus": {
+      const campus = tree.byCode.get(rule.campusCode);
+      return !!campus && overlaps(unit, campus);
+    }
+    case "role": {
+      const target = tree.byCode.get(rule.unitCode);
+      return !!target && overlaps(unit, target);
+    }
     case "department": {
       const dept = tree.byCode.get(rule.departmentCode);
       return !!dept && overlaps(unit, dept);
@@ -91,12 +106,19 @@ function overlapsStaff(rule: AudienceRule, unit: OrgNode, tree: OrgTree): boolea
   }
 }
 
+/** Staff recipient: a role notice needs that role in an overlapping unit; any other staff notice, any overlap. */
+function addressedAsStaff(rule: AudienceRule, viewer: Viewer): boolean {
+  if (!includes(rule, "staff")) return false;
+  if (rule.kind === "role")
+    return (viewer.staffRoles ?? []).some(
+      (r) => r.roleKey === rule.roleKey && overlapsStaff(rule, r.unit, viewer.tree),
+    );
+  return viewer.staffUnits.some((u) => overlapsStaff(rule, u, viewer.tree));
+}
+
 /** Addressed to the viewer: they are one of its recipients. */
 export function isAddressedTo(rule: AudienceRule, viewer: Viewer): boolean {
-  return (
-    (includes(rule, "staff") && viewer.staffUnits.some((u) => overlapsStaff(rule, u, viewer.tree))) ||
-    viewer.students.some((s) => matchesLinked(rule, s))
-  );
+  return addressedAsStaff(rule, viewer) || viewer.students.some((s) => matchesLinked(rule, s));
 }
 
 /**
@@ -105,8 +127,7 @@ export function isAddressedTo(rule: AudienceRule, viewer: Viewer): boolean {
  */
 export function recipientKeys(rule: AudienceRule, viewer: Viewer, userId: string): string[] {
   const keys: string[] = [];
-  if (includes(rule, "staff") && viewer.staffUnits.some((u) => overlapsStaff(rule, u, viewer.tree)))
-    keys.push(`u:${userId}`);
+  if (addressedAsStaff(rule, viewer)) keys.push(`u:${userId}`);
   for (const s of viewer.students)
     if (matchesLinked(rule, s)) keys.push(`${s.relation === "self" ? "s" : "g"}:${s.id}`);
   return keys;
@@ -124,11 +145,22 @@ export function isExpired(a: Pick<Announcement, "expiresAt">, now: Date): boolea
   return a.expiresAt !== null && new Date(a.expiresAt).getTime() <= now.getTime();
 }
 
-const EXAM_CATEGORIES: AnnouncementCategory[] = ["examinations", "results"];
-const JOB_CATEGORIES: AnnouncementCategory[] = ["placement", "internships"];
+const CATEGORY_VIEW: Record<AnnouncementCategory, "exams" | "placements" | "academic" | "administrative"> = {
+  examinations: "exams",
+  results: "exams",
+  placement: "placements",
+  internships: "placements",
+  academic: "academic",
+  events: "academic",
+  scholarships: "administrative",
+  administrative: "administrative",
+  compliance: "administrative",
+  emergency: "administrative",
+  general: "administrative",
+};
 const DAY = 24 * 60 * 60 * 1000;
 
-/** Needs the viewer's attention today: addressed to them and urgent, new, due within a week or awaiting their acknowledgement. */
+/** Needs the viewer's attention: addressed to them and urgent, new, due within a week or awaiting their acknowledgement. */
 export function needsAttention(a: InboxItem, now: Date): boolean {
   if (!a.addressed || isExpired(a, now)) return false;
   const age = now.getTime() - new Date(a.publishedAt).getTime();
@@ -148,14 +180,12 @@ export function inView(a: InboxItem, view: InboxView, now: Date): boolean {
       return expired;
     case "saved":
       return a.saved;
-    case "exams":
-      return !expired && EXAM_CATEGORIES.includes(a.category);
-    case "jobs":
-      return !expired && JOB_CATEGORIES.includes(a.category);
-    case "mine":
+    case "all":
       return !expired;
-    case "today":
+    case "important":
       return needsAttention(a, now);
+    default:
+      return !expired && CATEGORY_VIEW[a.category] === view;
   }
 }
 

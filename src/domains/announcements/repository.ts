@@ -11,7 +11,7 @@ import type { DepartmentCode } from "@/domains/org/types";
 import type { Student } from "@/domains/students/types";
 import type { Authed } from "@/lib/authz/context";
 import { descendantsOfType } from "@/lib/authz/org-tree";
-import type { OrgNode } from "@/lib/authz/types";
+import type { OrgNode, OrgTree } from "@/lib/authz/types";
 import { institutionNow } from "@/lib/clock";
 import { canApprove, canManageNotice, authorityAt } from "./guards";
 import {
@@ -27,8 +27,8 @@ import {
   type AnnouncementRecord,
   type RecipientStudent,
 } from "./load";
-import { audienceUnit, type Authority } from "./rules";
-import type { AudienceGroup, AudienceRule, InboxItem, InboxView } from "./types";
+import { audienceUnit, STAFF_ROLES, type Authority } from "./rules";
+import { INBOX_VIEWS, type AudienceGroup, type AudienceRule, type InboxItem, type InboxView } from "./types";
 import {
   includes,
   inView,
@@ -71,7 +71,18 @@ export async function viewerFor(authed: Authed): Promise<Viewer> {
       sectionId: st.sectionId,
       relation,
     }));
-  return { tree, staffUnits, students: [...linked("self", self), ...linked("guardian", guardian)] };
+  const staffRoles = ctx.assignments
+    .filter((a) => a.scopeMode !== "linked" && a.permissions.has("announcement:view"))
+    .flatMap((a) => {
+      const unit = tree.byId.get(a.orgUnitId);
+      return unit ? [{ roleKey: a.roleKey, unit }] : [];
+    });
+  return {
+    tree,
+    staffUnits,
+    staffRoles,
+    students: [...linked("self", self), ...linked("guardian", guardian)],
+  };
 }
 
 const viewerCache = cache(viewerFor);
@@ -81,7 +92,9 @@ const inbox = cache(async (authed: Authed): Promise<InboxItem[]> => {
   const { ctx } = authed;
   const viewer = await viewerCache(authed);
   const published = await loadPublished(db(), ctx.tenantId);
-  const visible = published.filter((a) => isVisibleTo(a.audience, viewer));
+  const now = institutionNow();
+  // Scheduled notices stay out of every inbox until their publication time.
+  const visible = published.filter((a) => new Date(a.publishedAt) <= now && isVisibleTo(a.audience, viewer));
   const keysByNotice = new Map(visible.map((a) => [a.id, recipientKeys(a.audience, viewer, ctx.userId)]));
   const allKeys = [...new Set([...keysByNotice.values()].flat())];
   const [receipts, saved] = await Promise.all([
@@ -117,7 +130,7 @@ export async function listInbox(authed: Authed, view: InboxView): Promise<InboxI
 export async function inboxCounts(authed: Authed): Promise<Record<InboxView, number>> {
   const items = await inbox(authed);
   const now = institutionNow();
-  const views: InboxView[] = ["today", "mine", "exams", "jobs", "saved", "history"];
+  const views = INBOX_VIEWS;
   return Object.fromEntries(views.map((v) => [v, items.filter((a) => inView(a, v, now)).length])) as Record<
     InboxView,
     number
@@ -144,6 +157,7 @@ export async function noticesForStudent(authed: Authed, student: Student) {
   };
   return (await loadPublishedCached(authed.ctx.tenantId)).filter(
     (a) =>
+      new Date(a.publishedAt) <= now &&
       targetsStudent(a.audience, placement) &&
       includes(a.audience, "students") &&
       (a.expiresAt === null || new Date(a.expiresAt) > now),
@@ -212,14 +226,14 @@ export function reachOf(rule: AudienceRule, students: readonly RecipientStudent[
 export interface TargetOption {
   key: string;
   label: string;
-  group: "Institution" | "Departments" | "Years" | "Sections";
+  group: "Institution" | "Campuses" | "Departments" | "Years" | "Sections";
   authority: Authority;
   students: number;
   guardians: number;
   guardianEmails: number;
 }
 
-export function targetKey(rule: AudienceRule): string {
+export function targetKey(rule: AudienceRule, tree: OrgTree): string {
   switch (rule.kind) {
     case "institution":
       return "institution";
@@ -231,7 +245,23 @@ export function targetKey(rule: AudienceRule): string {
       return `section:${rule.sectionId}`;
     case "placement_eligible":
       return `placement:${rule.departmentCodes.join(",")}:${rule.year}`;
+    case "campus":
+      return `campus:${rule.campusCode}`;
+    case "role": {
+      const unit = tree.byCode.get(rule.unitCode);
+      if (!unit || unit.type === "institution") return "institution";
+      return `${unit.type === "campus" ? "campus" : unit.type === "section" ? "section" : "department"}:${unit.code}`;
+    }
   }
+}
+
+/** What the composer submits as "who in it": a group, or a staff role ("role:class_incharge"). */
+export type AudienceChoice = AudienceGroup | `role:${string}`;
+
+export function audienceChoice(rule: AudienceRule): AudienceChoice {
+  if (rule.kind === "role") return `role:${rule.roleKey}`;
+  if (rule.kind === "placement_eligible") return "students";
+  return rule.audience;
 }
 
 /** Targets the user may publish to: the institution, departments, department years and sections. */
@@ -246,7 +276,7 @@ export async function composerTargets(authed: Authed): Promise<TargetOption[]> {
     if (!authority.publish) return;
     const targeted = students.filter((st) => targetsStudent(rule, st));
     out.push({
-      key: targetKey(rule),
+      key: targetKey(rule, tree),
       label,
       group,
       authority,
@@ -256,6 +286,13 @@ export async function composerTargets(authed: Authed): Promise<TargetOption[]> {
     });
   };
   add("Institution", tree.root.name, { kind: "institution", audience: "everyone" });
+  for (const c of descendantsOfType(tree, tree.root, "campus"))
+    add("Campuses", c.name, {
+      kind: "campus",
+      campusCode: c.code,
+      departmentCodes: descendantsOfType(tree, c, "department").map((d) => d.code as DepartmentCode),
+      audience: "everyone",
+    });
   const departments = descendantsOfType(tree, tree.root, "department");
   for (const d of departments)
     add("Departments", d.name, {
@@ -281,9 +318,29 @@ export async function composerTargets(authed: Authed): Promise<TargetOption[]> {
 }
 
 /** Turns a composer target key and audience group back into a rule. Unknown units are rejected by the caller. */
-export function ruleFromKey(key: string, audience: AudienceGroup): AudienceRule | null {
+export function ruleFromKey(key: string, choice: AudienceChoice, tree: OrgTree): AudienceRule | null {
   const [kind, a, b] = key.split(":");
+  const unitCode =
+    kind === "institution"
+      ? tree.root.code
+      : kind === "campus" || kind === "department" || kind === "year" || kind === "section"
+        ? a
+        : undefined;
+  if (choice.startsWith("role:")) {
+    const roleKey = choice.slice(5);
+    if (!unitCode || kind === "year" || !STAFF_ROLES.some((r) => r.key === roleKey)) return null;
+    return { kind: "role", roleKey, unitCode };
+  }
+  const audience = choice as AudienceGroup;
   if (kind === "institution") return { kind: "institution", audience };
+  if (kind === "campus" && a) {
+    const campus = tree.byCode.get(a);
+    if (!campus || campus.type !== "campus") return null;
+    const departmentCodes = descendantsOfType(tree, campus, "department").map(
+      (d) => d.code as DepartmentCode,
+    );
+    return { kind: "campus", campusCode: a, departmentCodes, audience };
+  }
   if (kind === "department" && a)
     return { kind: "department", departmentCode: a as DepartmentCode, audience };
   if (kind === "year" && a && b && /^\d$/.test(b))

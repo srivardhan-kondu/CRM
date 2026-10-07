@@ -14,6 +14,10 @@ export function audienceUnit(rule: AudienceRule, tree: OrgTree): OrgNode | null 
     case "institution":
     case "placement_eligible":
       return tree.root;
+    case "campus":
+      return tree.byCode.get(rule.campusCode) ?? null;
+    case "role":
+      return tree.byCode.get(rule.unitCode) ?? null;
     case "department":
     case "year":
       return tree.byCode.get(rule.departmentCode) ?? null;
@@ -32,10 +36,25 @@ export const GROUP_LABEL: Record<AudienceGroup, string> = {
 
 const ordinal = (n: number) => `${n}${n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th"}`;
 
+/** Staff roles a notice can be addressed to. */
+export const STAFF_ROLES = [
+  { key: "faculty", label: "Faculty" },
+  { key: "class_incharge", label: "Class incharges" },
+  { key: "hod", label: "Heads of department" },
+  { key: "programme_coordinator", label: "Programme coordinators" },
+] as const;
+
 export function audienceLabel(rule: AudienceRule, tree: OrgTree): string {
   switch (rule.kind) {
     case "institution":
       return `${GROUP_LABEL[rule.audience]} · Institution-wide`;
+    case "campus":
+      return `${tree.byCode.get(rule.campusCode)?.name ?? rule.campusCode} · ${GROUP_LABEL[rule.audience]}`;
+    case "role": {
+      const unit = tree.byCode.get(rule.unitCode);
+      const role = STAFF_ROLES.find((r) => r.key === rule.roleKey)?.label ?? rule.roleKey;
+      return `${role} · ${unit?.type === "institution" ? "Institution-wide" : (unit?.name ?? rule.unitCode)}`;
+    }
     case "department":
       return `${tree.byCode.get(rule.departmentCode)?.name ?? rule.departmentCode} · ${GROUP_LABEL[rule.audience]}`;
     case "year":
@@ -60,8 +79,14 @@ export type PublishRoute = { kind: "direct" } | { kind: "approval" } | { kind: "
  * How a notice gets out (ADR-023): you may only address a target you may publish to; only those who may message
  * guardians address guardians; critical notices come from approvers (an emergency cannot wait in a queue). Approvers
  * publish directly, as does anyone writing to a single section; everything broader waits for someone else's approval.
+ * `sectionLevel` says whether the target unit is a single section.
  */
-export function publishRoute(rule: AudienceRule, severity: Severity, authority: Authority): PublishRoute {
+export function publishRoute(
+  rule: AudienceRule,
+  severity: Severity,
+  authority: Authority,
+  sectionLevel = rule.kind === "section",
+): PublishRoute {
   if (!authority.publish) return { kind: "denied", reason: "You can't publish to this audience." };
   if (includes(rule, "guardians") && !authority.guardians)
     return {
@@ -73,7 +98,7 @@ export function publishRoute(rule: AudienceRule, severity: Severity, authority: 
       kind: "denied",
       reason: "Critical notices are published by the HOD or principal for this audience.",
     };
-  if (authority.approve || rule.kind === "section") return { kind: "direct" };
+  if (authority.approve || sectionLevel) return { kind: "direct" };
   return { kind: "approval" };
 }
 

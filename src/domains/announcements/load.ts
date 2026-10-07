@@ -40,6 +40,7 @@ const columns = {
   withdrawnAt: s.announcement.withdrawnAt,
   withdrawReason: s.announcement.withdrawReason,
   remindedAt: s.announcement.remindedAt,
+  scheduledFor: s.announcement.scheduledFor,
 };
 
 function announcementQuery(q: Db) {
@@ -69,6 +70,7 @@ export interface AnnouncementRecord extends Announcement {
   withdrawnAt: string | null;
   withdrawReason: string | null;
   remindedAt: string | null;
+  scheduledFor: string | null;
 }
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
@@ -104,6 +106,7 @@ function toRecord(row: Row, attachments: AttachmentMeta[]): AnnouncementRecord {
     withdrawnAt: iso(row.withdrawnAt),
     withdrawReason: row.withdrawReason,
     remindedAt: iso(row.remindedAt),
+    scheduledFor: iso(row.scheduledFor),
   };
 }
 

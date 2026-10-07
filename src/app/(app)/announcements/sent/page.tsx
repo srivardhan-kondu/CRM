@@ -90,7 +90,7 @@ export default async function SentPage({
                     )}
                   >
                     <div className="flex items-center gap-2">
-                      <Badge tone={STATUS_LABEL[a.status].tone}>{STATUS_LABEL[a.status].label}</Badge>
+                      <StatusBadge a={a} now={now} />
                       <span className="text-2xs text-subtle ml-auto">
                         {formatRelative(a.publishedAt, now)}
                       </span>
@@ -146,7 +146,7 @@ function SentDetail({
     <div className="space-y-5">
       <article className="border-border bg-surface rounded-lg border p-5 shadow-xs">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={STATUS_LABEL[a.status].tone}>{STATUS_LABEL[a.status].label}</Badge>
+          <StatusBadge a={a} now={now} />
           <SeverityBadge severity={a.severity} />
           <Badge tone="outline">{CATEGORY_LABEL[a.category]}</Badge>
           {a.status === "published" && isExpired(a, now) && <Badge tone="neutral">Expired</Badge>}
@@ -368,4 +368,11 @@ function Engagement({ e, ack }: { e: EngagementView; ack: boolean }) {
       )}
     </>
   );
+}
+
+/** Status, with "Scheduled" for a published notice whose publication time is still ahead. */
+function StatusBadge({ a, now }: { a: AnnouncementRecord; now: Date }) {
+  if (a.status === "published" && new Date(a.publishedAt) > now)
+    return <Badge tone="info">Scheduled · {formatDateTime(a.publishedAt)}</Badge>;
+  return <Badge tone={STATUS_LABEL[a.status].tone}>{STATUS_LABEL[a.status].label}</Badge>;
 }

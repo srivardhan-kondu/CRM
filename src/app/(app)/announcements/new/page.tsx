@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { Composer, type ComposerInitial } from "@/components/communication/composer";
 import { PageHeader } from "@/components/patterns/page-header";
 import { PermissionState } from "@/components/patterns/states";
-import { composerTargets, managedNotice, targetKey } from "@/domains/announcements/repository";
+import {
+  audienceChoice,
+  composerTargets,
+  managedNotice,
+  targetKey,
+} from "@/domains/announcements/repository";
 import { formatBytes } from "@/domains/announcements/rules";
 import { requireAuth } from "@/lib/authz/context";
 import { institutionNow } from "@/lib/clock";
@@ -51,10 +56,11 @@ export default async function NewAnnouncementPage({
       body: a.body.join("\n\n"),
       category: a.category,
       severity: a.severity,
-      target: targetKey(a.audience),
-      audience: a.audience.kind === "placement_eligible" ? "students" : a.audience.audience,
+      target: targetKey(a.audience, authed.tree),
+      audience: audienceChoice(a.audience),
       deadline: localInput(a.deadline),
       expiresAt: localInput(a.expiresAt),
+      publishAt: localInput(a.scheduledFor),
       requiresAck: a.requiresAck,
       sendEmail: a.sendEmail,
       attachments: a.attachments.map((f) => ({ id: f.id, name: f.name, size: formatBytes(f.sizeBytes) })),

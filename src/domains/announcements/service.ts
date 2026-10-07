@@ -78,7 +78,11 @@ const noticeSchema = z
     category: z.enum(CATEGORIES),
     severity: z.enum(SEVERITIES),
     target: z.string().min(1).max(80),
-    audience: z.enum(AUDIENCE_GROUPS),
+    audience: z.union([
+      z.enum(AUDIENCE_GROUPS),
+      z.custom<`role:${string}`>((v) => typeof v === "string" && /^role:[a-z_]{2,40}$/.test(v)),
+    ]),
+    publishAt: optionalDateTime,
     deadline: optionalDateTime,
     expiresAt: optionalDateTime,
     requiresAck: z.boolean(),
@@ -106,7 +110,7 @@ type NoticeCore = Pick<
 >;
 
 function noticeEmail(a: NoticeCore, reminder: boolean) {
-  const link = `${appUrl()}/announcements?view=mine&id=${a.id}`;
+  const link = `${appUrl()}/announcements?view=all&id=${a.id}`;
   return {
     subject: `${reminder ? "Reminder: " : ""}${a.title}`,
     body: `${a.summary}\n\n${a.requiresAck ? "Read and acknowledge" : "Read"} the full notice from ${a.author}: ${link}`,
@@ -174,6 +178,10 @@ function fanOut(
   return out;
 }
 
+/** A scheduled notice publishes at its scheduled time, or now if that has passed (as the database does). */
+const publishMoment = (scheduledFor: string | null, now: Date) =>
+  scheduledFor && new Date(scheduledFor) > now ? new Date(scheduledFor) : now;
+
 function authorRole(authed: Authed): string {
   return authed.ctx.active?.roleName ?? "Staff";
 }
@@ -189,16 +197,19 @@ export async function saveNotice(
   const { ctx, tree } = authed;
   const now = institutionNow();
 
-  const rule = ruleFromKey(d.target, d.audience);
+  const rule = ruleFromKey(d.target, d.audience, tree);
   const unit = rule && audienceUnit(rule, tree);
   if (!rule || !unit) return fail("Choose who the notice is for.");
   if (d.expiresAt && d.expiresAt <= now) return fail("The expiry must be in the future.");
   if (d.deadline && d.deadline <= now) return fail("The action deadline must be in the future.");
+  if (d.publishAt && d.publishAt <= now) return fail("The scheduled time must be in the future.");
+  if (d.publishAt && d.expiresAt && d.expiresAt <= d.publishAt)
+    return fail("A scheduled notice must expire after it is published.");
   if (d.sendEmail && !includes(rule, "students") && !includes(rule, "guardians"))
     return fail("Email goes to students and guardians; staff notices are in-app only.");
 
   const authority = authorityAt(ctx, tree, unit.id);
-  const route = publishRoute(rule, d.severity, authority);
+  const route = publishRoute(rule, d.severity, authority, unit.type === "section");
   if (route.kind === "denied") return denied(authed, "announcement.save", "announcement", route.reason, d.id);
 
   let existing: AnnouncementRecord | null = null;
@@ -234,6 +245,7 @@ export async function saveNotice(
     sendEmail: d.sendEmail,
     deadline: d.deadline ?? null,
     expiresAt: d.expiresAt ?? null,
+    scheduledFor: d.publishAt ?? null,
     updatedAt: now,
   };
   const outcome = d.intent === "draft" ? "draft" : route.kind === "direct" ? "published" : "pending";
@@ -295,7 +307,9 @@ export async function saveNotice(
         );
       if (outcome !== "draft") statements.push(transition(q, id, outcome, ctx.userId, null, now));
       if (outcome === "published")
-        statements.push(...fanOut(q, authed, { id, ...content, author: ctx.name }, students, now));
+        statements.push(
+          ...fanOut(q, authed, { id, ...content, author: ctx.name }, students, d.publishAt ?? now),
+        );
       statements.push(q.insert(s.auditEvent).values(audit));
       return statements as Statements;
     });
@@ -309,7 +323,9 @@ export async function saveNotice(
     outcome === "draft"
       ? "Draft saved."
       : outcome === "published"
-        ? `Published to ${content.audienceLabel}.`
+        ? d.publishAt
+          ? `Scheduled for ${d.publishAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })} to ${content.audienceLabel}.`
+          : `Published to ${content.audienceLabel}.`
         : "Submitted for approval. You'll be notified when it is decided.";
   return { ok: true, message, auditId: audit.id };
 }
@@ -378,7 +394,8 @@ export async function decideNotice(authed: Authed, input: unknown): Promise<Acti
           now,
         ),
       ];
-      if (d.decision === "approved") statements.push(...fanOut(q, authed, a, students, now));
+      if (d.decision === "approved")
+        statements.push(...fanOut(q, authed, a, students, publishMoment(a.scheduledFor, now)));
       if (notify.length > 0) statements.push(q.insert(s.userNotification).values(notify));
       statements.push(q.insert(s.auditEvent).values(audit));
       return statements as Statements;

@@ -34,11 +34,15 @@ export type AudienceGroup = (typeof AUDIENCE_GROUPS)[number];
  */
 export type AudienceRule =
   | { kind: "institution"; audience: AudienceGroup }
+  /** A campus: its departments are resolved when the notice is written, so targeting never depends on a lookup. */
+  | { kind: "campus"; campusCode: string; departmentCodes: DepartmentCode[]; audience: AudienceGroup }
   | { kind: "department"; departmentCode: DepartmentCode; audience: AudienceGroup }
   | { kind: "year"; departmentCode: DepartmentCode; year: number; audience: AudienceGroup }
   | { kind: "section"; sectionId: string; audience: AudienceGroup }
   /** Students of a year across departments (placement drives). Students only. */
-  | { kind: "placement_eligible"; departmentCodes: DepartmentCode[]; year: number };
+  | { kind: "placement_eligible"; departmentCodes: DepartmentCode[]; year: number }
+  /** Staff holding a role (faculty, class incharges, HODs…) within a unit. Staff only. */
+  | { kind: "role"; roleKey: string; unitCode: string };
 
 export type AnnouncementStatus = "draft" | "pending" | "published" | "rejected" | "withdrawn";
 
@@ -84,4 +88,15 @@ export interface ViewerState {
 
 export type InboxItem = Announcement & ViewerState;
 
-export type InboxView = "today" | "mine" | "exams" | "jobs" | "saved" | "history";
+export const INBOX_VIEWS = [
+  "all",
+  "important",
+  "exams",
+  "placements",
+  "academic",
+  "administrative",
+  "saved",
+  "history",
+] as const;
+
+export type InboxView = (typeof INBOX_VIEWS)[number];

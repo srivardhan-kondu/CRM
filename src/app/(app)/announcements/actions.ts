@@ -60,6 +60,7 @@ export async function saveNoticeAction(_prev: unknown, form: FormData) {
         audience: field(form, "audience"),
         deadline: field(form, "deadline"),
         expiresAt: field(form, "expiresAt"),
+        publishAt: field(form, "publishAt"),
         requiresAck: form.get("requiresAck") === "on",
         sendEmail: form.get("sendEmail") === "on",
         removeAttachments: form.getAll("removeAttachments").map(String),

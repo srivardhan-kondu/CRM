@@ -33,26 +33,28 @@ import { Button } from "@/components/ui/button";
 import { canManageNotice } from "@/domains/announcements/guards";
 import { getInboxItem, inboxCounts, listInbox, recordRead } from "@/domains/announcements/repository";
 import { formatBytes } from "@/domains/announcements/rules";
-import type { InboxItem, InboxView } from "@/domains/announcements/types";
+import { INBOX_VIEWS, type InboxItem, type InboxView } from "@/domains/announcements/types";
 import { isExpired } from "@/domains/announcements/visibility";
 import { requireAuth } from "@/lib/authz/context";
 import { holdsAnywhere } from "@/lib/authz/engine";
 import { institutionNow } from "@/lib/clock";
 import { cn, formatDateTime, formatRelative } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "Announcements" };
+export const metadata: Metadata = { title: "Inbox" };
 
 const VIEWS: { key: InboxView; label: string }[] = [
-  { key: "today", label: "Today" },
-  { key: "mine", label: "All active" },
+  { key: "all", label: "All" },
+  { key: "important", label: "Important" },
   { key: "exams", label: "Exams" },
-  { key: "jobs", label: "Jobs" },
+  { key: "placements", label: "Placements" },
+  { key: "academic", label: "Academic" },
+  { key: "administrative", label: "Administrative" },
   { key: "saved", label: "Saved" },
   { key: "history", label: "History" },
 ];
 
 const paramsSchema = z.object({
-  view: z.enum(["today", "mine", "exams", "jobs", "saved", "history"]).catch("today"),
+  view: z.enum(INBOX_VIEWS).catch("all"),
   id: z.string().max(80).optional().catch(undefined),
 });
 
@@ -65,7 +67,7 @@ export default async function AnnouncementsPage({
   const canPublish = holdsAnywhere(authed.ctx, "announcement:publish");
   const raw = await searchParams;
   const { view, id } = paramsSchema.parse({
-    view: raw.view ?? "today",
+    view: raw.view ?? "all",
     id: typeof raw.id === "string" ? raw.id : undefined,
   });
   const now = institutionNow();
@@ -84,7 +86,7 @@ export default async function AnnouncementsPage({
   return (
     <>
       <PageHeader
-        title="Announcements"
+        title="Inbox"
         description="Official notices addressed to you — one place instead of WhatsApp groups and email threads."
         actions={
           canPublish ? (
@@ -269,7 +271,7 @@ function InboxEmpty({ view }: { view: InboxView }) {
       title: "No past notices",
       description: "Expired notices you received will be kept here for reference.",
     },
-    jobs: {
+    placements: {
       icon: Inbox,
       title: "No open opportunities",
       description: "Placement and internship notices you're eligible for will appear here.",
@@ -279,15 +281,25 @@ function InboxEmpty({ view }: { view: InboxView }) {
       title: "No exam notices",
       description: "Exam schedules, hall tickets and results notices will appear here.",
     },
-    mine: {
+    academic: {
+      icon: Inbox,
+      title: "No academic notices",
+      description: "Class, course and event notices appear here.",
+    },
+    administrative: {
+      icon: Inbox,
+      title: "No administrative notices",
+      description: "Office, finance and compliance notices appear here.",
+    },
+    all: {
       icon: Inbox,
       title: "No active notices",
       description: "Notices addressed to you will appear here.",
     },
-    today: {
+    important: {
       icon: Inbox,
       title: "You're all caught up",
-      description: "Nothing new needs your attention today. Check “All active” for everything current.",
+      description: "Nothing urgent, new, due soon or awaiting your acknowledgement.",
     },
   };
   const s = states[view];
