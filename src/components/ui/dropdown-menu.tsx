@@ -33,7 +33,7 @@ export function DropdownMenuItem({ className, ...props }: ComponentProps<typeof 
   return (
     <Menu.Item
       className={cn(
-        "text-foreground data-[highlighted]:bg-surface-muted [&_svg]:text-muted flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none select-none data-[disabled]:opacity-50 [&_svg]:size-4",
+        "text-foreground data-[highlighted]:bg-surface-muted [&_svg]:text-muted flex cursor-default items-center gap-2.5 rounded-md px-2 py-2 text-[15px] outline-none select-none data-[disabled]:opacity-50 [&_svg]:size-5 [&_svg]:shrink-0",
         className,
       )}
       {...props}
@@ -42,12 +42,7 @@ export function DropdownMenuItem({ className, ...props }: ComponentProps<typeof 
 }
 
 export function DropdownMenuLabel({ className, ...props }: ComponentProps<typeof Menu.Label>) {
-  return (
-    <Menu.Label
-      className={cn("text-2xs text-subtle px-2 py-1.5 font-medium tracking-wide uppercase", className)}
-      {...props}
-    />
-  );
+  return <Menu.Label className={cn("text-muted px-2 py-1.5 text-sm font-semibold", className)} {...props} />;
 }
 
 export function DropdownMenuSeparator({ className, ...props }: ComponentProps<typeof Menu.Separator>) {

@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 };
 
 // Applies the stored theme before first paint to avoid a light/dark flash. Light is the default.
-const themeScript = `(()=>{try{var t=localStorage.getItem("campusos-theme")||"light";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})()`;
+const themeScript = `(()=>{try{var t=localStorage.getItem("campusos-theme")||"light";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);document.documentElement.classList.toggle("text-large",localStorage.getItem("campusos-text")==="large")}catch(e){}})()`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

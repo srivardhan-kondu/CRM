@@ -95,23 +95,23 @@ export function SeverityBadge({ severity }: { severity: Severity }) {
     case "critical":
       return (
         <Badge tone="danger">
-          <AlertOctagon aria-hidden /> Critical
+          <AlertOctagon aria-hidden /> Urgent
         </Badge>
       );
     case "high":
       return (
         <Badge tone="warning">
-          <AlertTriangle aria-hidden /> High
+          <AlertTriangle aria-hidden /> Important
         </Badge>
       );
     case "normal":
       return (
         <Badge tone="info">
-          <Info aria-hidden /> Normal
+          <Info aria-hidden /> Notice
         </Badge>
       );
     case "low":
-      return <Badge tone="neutral">Low</Badge>;
+      return <Badge tone="neutral">For information</Badge>;
   }
 }
 

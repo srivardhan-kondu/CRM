@@ -2,7 +2,7 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
 const field =
-  "h-9 w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground shadow-xs transition-colors placeholder:text-subtle hover:border-border-strong focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-60";
+  "h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground shadow-xs transition-colors placeholder:text-subtle hover:border-border-strong focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-60";
 
 export function Input({ className, ...props }: ComponentProps<"input">) {
   return <input className={cn(field, className)} {...props} />;
@@ -28,5 +28,5 @@ export function Select({ className, children, ...props }: ComponentProps<"select
 }
 
 export function Label({ className, ...props }: ComponentProps<"label">) {
-  return <label className={cn("text-foreground text-xs font-medium", className)} {...props} />;
+  return <label className={cn("text-foreground text-sm font-medium", className)} {...props} />;
 }
