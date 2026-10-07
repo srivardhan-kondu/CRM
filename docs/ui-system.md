@@ -4,6 +4,22 @@
 scannable. Every screen answers three questions — what is happening, what needs attention, what should I do next.
 Designed for 14-inch laptops first, then tablet and phone.
 
+## Built for every user, including older and occasional ones
+
+Many users are not daily computer users. The rules that follow from that (2026-10-07):
+
+- **Large and readable:** base text 17 px (19 px with "Use larger text" in the account menu); nothing smaller than
+  ~13 px; secondary text is dark grey, not light grey; buttons and inputs are at least 40 px tall, menu rows 44 px.
+- **Plain words:** "To do", "Urgent", "Overdue", "Can sit the exams", "special permission" — never SLA, condonation band,
+  CIE or moderation on the main screens.
+- **One thing at a time:** each home page is a sentence on how things are, a to-do list with one big button per item,
+  at most four large numbers, today's classes and the latest notices. Charts, comparisons and long lists sit behind
+  "Show more details", closed by default.
+- **Short menus:** only what the person can use today; modules from later phases are hidden (their pages still answer
+  direct links). The top bar has four things: search, "Ask a question", notifications and the account menu, which
+  holds role switching, text size, light/dark and sign out.
+- **Clear icons:** Phosphor duotone icons, always next to a text label.
+
 ## Tokens — `src/app/globals.css`
 
 Semantic tokens defined as CSS variables for light (the default) and `.dark`, exposed to Tailwind 4 via `@theme inline`.
@@ -13,7 +29,7 @@ Components use semantic names only: `bg-surface`, `bg-surface-muted`, `text-mute
 - **Color (light):** background `#F6F8FB`, surface `#FFFFFF`, text `#182230` / `#64748B`, border `#E6EAF0`, brand
   `#3157D5`, success `#168A59`, warning `#B7791F`, critical `#D64545`, info `#3B82F6`. Colour only carries meaning;
   the smallest text (`subtle`, `#6B778A`) still clears 4.5:1 on white.
-- **Type:** Inter (loaded with `next/font`); `.tabular` for numbers; `text-2xs` (11px) for metadata.
+- **Type:** Inter (loaded with `next/font`); `.tabular` for numbers; `text-2xs` (~13 px) for the smallest metadata.
 - **Radius:** sm 6 · md 8 · lg 12 · xl 16. **Shadow:** xs/sm/md/lg tuned per theme.
 - **Motion:** pages fade in over 180 ms (`animate-page-in`), hovers 120 ms; nothing else animates; all disabled
   under `prefers-reduced-motion`.
