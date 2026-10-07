@@ -222,7 +222,7 @@ async function approvals(authed: Authed) {
     ...(attendance ?? []).map((a) => ({
       label: a.title,
       sublabel: a.requester,
-      value: a.overdue ? "SLA breached" : `Due ${formatDate(a.dueAt)}`,
+      value: a.overdue ? "Overdue" : `Due ${formatDate(a.dueAt)}`,
       tone: (a.overdue ? "critical" : "neutral") as AnswerRecord["tone"],
       href: `/approvals#${a.id}`,
     })),
@@ -246,12 +246,12 @@ async function approvals(authed: Authed) {
   const overdue = (attendance ?? []).filter((a) => a.overdue).length;
   return {
     answer: records.length
-      ? `${pluralize(records.length, "item")} ${records.length === 1 ? "waits" : "wait"} for your decision${overdue ? `, ${overdue} past the SLA` : ""}.`
+      ? `${pluralize(records.length, "item")} ${records.length === 1 ? "waits" : "wait"} for your decision${overdue ? `, ${overdue} overdue` : ""}.`
       : "Nothing is waiting for your decision.",
     records: records.slice(0, MAX_RECORDS),
     total: records.length,
     recommendation: overdue
-      ? { text: "Clear the items past their SLA first.", href: "/approvals" }
+      ? { text: "Start with the overdue items.", href: "/approvals" }
       : records.length
         ? { text: "Open the approvals queue.", href: "/approvals" }
         : null,

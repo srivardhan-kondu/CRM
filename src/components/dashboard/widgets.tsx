@@ -192,17 +192,17 @@ export function ScheduleList({
         const live = c.window === "open" && now < c.endsAt;
         const done = c.window === "closed" || (c.window === "open" && !live);
         return (
-          <li key={c.key} className="flex items-center gap-3 px-4 py-2.5">
-            <div className="tabular w-14 shrink-0 text-xs">
+          <li key={c.key} className="flex items-center gap-4 px-5 py-3.5">
+            <div className="tabular w-16 shrink-0 text-[15px]">
               <div className={cn("font-medium", done ? "text-subtle" : "text-foreground")}>{c.startsAt}</div>
               <div className="text-subtle">{c.endsAt}</div>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">
+              <p className="truncate text-[17px] font-semibold">
                 {c.courseName}{" "}
                 <span className="text-2xs text-subtle font-mono font-normal">{c.courseCode}</span>
               </p>
-              <p className="text-muted flex items-center gap-2 text-xs">
+              <p className="text-muted flex items-center gap-2 text-sm">
                 <span className="inline-flex items-center gap-1">
                   <MapPin aria-hidden className="size-3" />
                   {c.room}
@@ -236,7 +236,7 @@ function ClassState({ c, live }: { c: ClassOccurrence; live: boolean }) {
   if (c.window === "open" && c.canMark)
     return (
       <Button asChild size="sm">
-        <Link href={markHref(c)}>Mark attendance</Link>
+        <Link href={markHref(c)}>Take attendance</Link>
       </Button>
     );
   if (live)
@@ -330,7 +330,7 @@ export function ApprovalList({ items, now }: { items: PendingApproval[]; now: Da
               </p>
             </div>
             <span className={cn("text-2xs shrink-0 font-medium", a.overdue ? "text-danger" : "text-muted")}>
-              {a.overdue ? "SLA breached" : `Due ${formatRelative(a.dueAt, now)}`}
+              {a.overdue ? "Overdue" : `Due ${formatRelative(a.dueAt, now)}`}
             </span>
           </Link>
         </li>

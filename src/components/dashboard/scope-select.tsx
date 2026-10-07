@@ -13,17 +13,20 @@ export function ScopeSelect({
 }) {
   const router = useRouter();
   return (
-    <Select
-      aria-label="Dashboard scope"
-      value={value}
-      onChange={(e) => router.push(`/dashboard?scope=${encodeURIComponent(e.target.value)}`)}
-      className="h-8 w-auto min-w-48 text-[13px]"
-    >
-      {options.map((o) => (
-        <option key={o.code} value={o.code}>
-          {o.label}
-        </option>
-      ))}
-    </Select>
+    <label className="flex flex-col gap-1 text-sm font-medium">
+      Showing
+      <Select
+        aria-label="Dashboard scope"
+        value={value}
+        onChange={(e) => router.push(`/dashboard?scope=${encodeURIComponent(e.target.value)}`)}
+        className="h-11 w-auto min-w-64 text-[15px]"
+      >
+        {options.map((o) => (
+          <option key={o.code} value={o.code}>
+            {o.label}
+          </option>
+        ))}
+      </Select>
+    </label>
   );
 }

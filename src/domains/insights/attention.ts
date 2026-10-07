@@ -9,10 +9,10 @@ export type Priority = "critical" | "action" | "important" | "info";
 export const PRIORITY_ORDER: Record<Priority, number> = { critical: 0, action: 1, important: 2, info: 3 };
 
 export const PRIORITY_LABEL: Record<Priority, string> = {
-  critical: "Critical",
-  action: "Action required",
+  critical: "Urgent",
+  action: "To do",
   important: "Important",
-  info: "For information",
+  info: "For your information",
 };
 
 export interface AttentionItem {
@@ -81,37 +81,37 @@ export function campusPulse(p: PulseInput): Pulse {
   const vitals: Vital[] = [
     {
       key: "attendance",
-      label: "Attendance",
+      label: "Average attendance",
       value: `${p.avgAttendance.toFixed(1)}%`,
       status:
         p.avgAttendance < p.threshold ? "critical" : p.avgAttendance < p.threshold + 5 ? "watch" : "good",
       note:
-        p.attendanceDelta === null
-          ? `Average against the ${p.threshold}% requirement`
-          : `${p.attendanceDelta >= 0 ? "Up" : "Down"} ${Math.abs(p.attendanceDelta).toFixed(1)} pts on last week · requirement ${p.threshold}%`,
+        p.attendanceDelta === null || Math.abs(p.attendanceDelta) < 0.05
+          ? `Needs to be ${p.threshold}% or more`
+          : `${p.attendanceDelta > 0 ? "Up" : "Down"} ${Math.abs(p.attendanceDelta).toFixed(1)} from last week · needs ${p.threshold}%`,
     },
     {
       key: "eligibility",
-      label: "Exam eligibility",
+      label: "Can sit the exams",
       value: `${(100 - shortageShare).toFixed(0)}%`,
       status: ineligibleShare > 2 ? "critical" : shortageShare > 10 ? "watch" : "good",
       note: p.shortage
-        ? `${p.shortage} below the requirement, ${p.notEligible} past the condonation band`
-        : "Every student meets the attendance requirement",
+        ? `${p.shortage} below ${p.threshold}% attendance, ${p.notEligible} of them too far below`
+        : "Every student has enough attendance",
     },
     {
       key: "risk",
-      label: "Students at risk",
+      label: "Students who need help",
       value: String(p.highRisk),
       status: riskShare > 3 ? "watch" : "good",
-      note: `${riskShare.toFixed(1)}% of ${p.students} students are high risk`,
+      note: `${riskShare.toFixed(0)}% of ${p.students} students`,
     },
     {
       key: "operations",
-      label: "Decisions waiting",
+      label: "Waiting for your decision",
       value: String(p.approvalsPending),
       status: p.approvalsOverdue > 0 ? "critical" : p.approvalsPending > 5 ? "watch" : "good",
-      note: p.approvalsOverdue ? `${p.approvalsOverdue} past the SLA` : "None past the SLA",
+      note: p.approvalsOverdue ? `${p.approvalsOverdue} overdue` : "Nothing overdue",
     },
   ];
   const status: Health = vitals.some((v) => v.status === "critical")
@@ -119,11 +119,23 @@ export function campusPulse(p: PulseInput): Pulse {
     : vitals.some((v) => v.status === "watch")
       ? "watch"
       : "good";
-  const worst = vitals.filter((v) => v.status === status && status !== "good");
+  const reasons: string[] = [];
+  if (p.notEligible > 0)
+    reasons.push(
+      `${p.notEligible} student${p.notEligible === 1 ? " is" : "s are"} too far below the attendance needed to sit exams`,
+    );
+  else if (shortageShare > 10) reasons.push(`${p.shortage} students are below ${p.threshold}% attendance`);
+  if (p.approvalsOverdue > 0)
+    reasons.push(
+      `${p.approvalsOverdue} request${p.approvalsOverdue === 1 ? " is" : "s are"} overdue for a decision`,
+    );
+  if (p.avgAttendance < p.threshold + 5)
+    reasons.push(`average attendance is only ${p.avgAttendance.toFixed(1)}%`);
+  if (riskShare > 3) reasons.push(`${p.highRisk} students need help`);
   const headline =
     status === "good"
-      ? `${p.scopeName} is in good health.`
-      : `${p.scopeName} ${status === "critical" ? "needs attention" : "is on watch"}: ${worst.map((v) => v.note.charAt(0).toLowerCase() + v.note.slice(1)).join("; ")}.`;
+      ? `Everything looks fine ${p.scopeName === "The campus" ? "across the campus" : `in ${p.scopeName}`}.`
+      : `${p.scopeName} ${status === "critical" ? "needs your attention" : "needs a closer look"}: ${reasons.join(", and ")}.`;
   return { status, headline, vitals };
 }
 

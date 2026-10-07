@@ -191,7 +191,7 @@ async function common(authed: Authed): Promise<AttentionItem[]> {
       id: `notice-${a.id}`,
       priority: "critical",
       title: a.title,
-      detail: `Critical notice from ${a.author}, ${a.authorRole}`,
+      detail: `Urgent notice from ${a.author}, ${a.authorRole}`,
       href: `/announcements?view=important&id=${a.id}`,
       cta: a.requiresAck ? "Read and acknowledge" : "Read",
     });
@@ -214,7 +214,7 @@ async function common(authed: Authed): Promise<AttentionItem[]> {
     items.push({
       id: "approvals-overdue",
       priority: "critical",
-      title: `${pluralize(overdue.length, "approval")} past the SLA`,
+      title: `${pluralize(overdue.length, "request")} overdue for your decision`,
       detail: overdue
         .map((a) => a.title)
         .slice(0, 2)
@@ -228,7 +228,7 @@ async function common(authed: Authed): Promise<AttentionItem[]> {
     items.push({
       id: "approvals",
       priority: "action",
-      title: `${pluralize(waiting, "decision")} waiting for you`,
+      title: `${pluralize(waiting, "request")} waiting for your decision`,
       detail: [
         notices.length ? pluralize(notices.length, "announcement") : null,
         approvals?.length ? `${approvals.length - overdue.length} attendance and leave` : null,
@@ -243,13 +243,13 @@ async function common(authed: Authed): Promise<AttentionItem[]> {
     items.push({
       id: "marks-moderate",
       priority: "action",
-      title: `${pluralize(marks.toModerate.length, "internal mark sheet")} to moderate`,
+      title: `${pluralize(marks.toModerate.length, "mark sheet")} to check and approve`,
       detail: marks.toModerate
         .slice(0, 3)
         .map((m) => `${m.offering.courseCode} ${m.offering.sectionLabel}`)
         .join(" · "),
       href: "/marks",
-      cta: "Moderate",
+      cta: "Check marks",
       count: marks.toModerate.length,
     });
   return items;
@@ -268,8 +268,8 @@ async function cohort(authed: Authed, unit: OrgNode): Promise<AttentionItem[]> {
     items.push({
       id: "not-eligible",
       priority: "critical",
-      title: `${pluralize(snap.notEligible.length, "student")} not eligible for the semester-end exams`,
-      detail: `Below the condonation band (more than 10 points under their requirement): ${snap.notEligible
+      title: `${pluralize(snap.notEligible.length, "student")} cannot sit the semester-end exams`,
+      detail: `Attendance is more than 10 points below what is needed: ${snap.notEligible
         .slice(0, 3)
         .map((r) => `${r.student.name} ${r.student.attendancePct.toFixed(0)}%`)
         .join(", ")}`,
@@ -282,8 +282,8 @@ async function cohort(authed: Authed, unit: OrgNode): Promise<AttentionItem[]> {
     items.push({
       id: "condonable",
       priority: "important",
-      title: `${pluralize(condonable, "student")} need condonation to sit the exams`,
-      detail: `Within 10 points below the ${snap.threshold}% requirement`,
+      title: `${pluralize(condonable, "student")} need special permission to sit the exams`,
+      detail: `Their attendance is a little below ${snap.threshold}% (within 10 points), so they need a condonation`,
       href: studentsHref({ ...base, shortage: true, sort: "attendance" }),
       cta: "See students",
       count: condonable,
@@ -292,10 +292,10 @@ async function cohort(authed: Authed, unit: OrgNode): Promise<AttentionItem[]> {
     items.push({
       id: "high-risk",
       priority: "important",
-      title: `${pluralize(snap.highRisk.length, "student")} at high risk`,
-      detail: "Two or more risk factors (attendance, CGPA, backlogs), or attendance under 65%",
+      title: `${pluralize(snap.highRisk.length, "student")} need extra help`,
+      detail: "Low attendance, low marks or failed subjects — open the list to see why for each student",
       href: studentsHref({ ...base, risk: "high", sort: "attendance" }),
-      cta: "Review",
+      cta: "See students",
       count: snap.highRisk.length,
     });
   const contactable = await contactableStudents(authed);
@@ -306,10 +306,10 @@ async function cohort(authed: Authed, unit: OrgNode): Promise<AttentionItem[]> {
     items.push({
       id: "guardians",
       priority: "action",
-      title: `${pluralize(toInform.length, "guardian")} to inform about attendance`,
-      detail: "Below the requirement and not told in the last 14 days",
+      title: `${pluralize(toInform.length, "parent")} to inform about low attendance`,
+      detail: "Their child is below the attendance needed and they haven't been told in the last 2 weeks",
       href: "/parent-communication",
-      cta: "Message guardians",
+      cta: "Message parents",
       count: toInform.length,
     });
   return items;
@@ -322,20 +322,20 @@ async function teaching(authed: Authed): Promise<AttentionItem[]> {
     items.push({
       id: "classes-overdue",
       priority: "critical",
-      title: `${pluralize(open.overdue.length, "earlier class", "earlier classes")} never marked`,
-      detail: "After the day, attendance goes to your HOD as a late submission",
+      title: `Attendance not taken for ${pluralize(open.overdue.length, "earlier class", "earlier classes")}`,
+      detail: "You can still send it — your HOD approves late attendance",
       href: "/tasks",
-      cta: "Submit late",
+      cta: "Send attendance",
       count: open.overdue.length,
     });
   if (open?.markNow.length)
     items.push({
       id: "classes-now",
       priority: "action",
-      title: `${pluralize(open.markNow.length, "class", "classes")} to mark today`,
+      title: `Take attendance for ${pluralize(open.markNow.length, "class", "classes")} today`,
       detail: open.markNow.map((c) => `${c.startsAt} ${c.courseCode} ${c.sectionLabel}`).join(" · "),
       href: "/attendance",
-      cta: "Mark attendance",
+      cta: "Take attendance",
       count: open.markNow.length,
     });
   const components = marks?.mine.flatMap((m) => m.components.map((c) => ({ c, o: m.offering }))) ?? [];
@@ -344,13 +344,13 @@ async function teaching(authed: Authed): Promise<AttentionItem[]> {
     items.push({
       id: "marks-returned",
       priority: "action",
-      title: `${pluralize(returned.length, "mark sheet")} returned by the HOD`,
+      title: `${pluralize(returned.length, "mark sheet")} sent back by your HOD`,
       detail: returned
         .map((x) => `${x.c.label} ${x.o.courseCode} ${x.o.sectionLabel}: “${x.c.returnNote}”`)
         .slice(0, 2)
         .join(" · "),
       href: `/marks/${returned[0]!.o.id}`,
-      cta: "Fix and resubmit",
+      cta: "Correct marks",
       count: returned.length,
     });
   return items;
@@ -367,8 +367,8 @@ async function self(authed: Authed, v: Visible): Promise<AttentionItem[]> {
       title: `Attendance ${st.attendancePct.toFixed(1)}% — below the ${st.attendanceThreshold}% requirement`,
       detail:
         e === "not_eligible"
-          ? "Below the condonation band: you cannot sit the semester-end exams as things stand"
-          : "Within the condonation band: attend every class and talk to your class incharge",
+          ? "This is too low to sit the semester-end exams. Please talk to your class incharge now"
+          : "Attend every class from now on, and talk to your class incharge about special permission",
       href: "/my/attendance",
       cta: "See subjects",
     });
@@ -393,8 +393,8 @@ async function self(authed: Authed, v: Visible): Promise<AttentionItem[]> {
     items.push({
       id: "messages",
       priority: "action",
-      title: `${pluralize(unread, "message")} from the college`,
-      detail: "Personal messages about your child",
+      title: `${pluralize(unread, "new message")} from the college`,
+      detail: "Messages about your child from teachers",
       href: "/my/messages",
       cta: "Read",
       count: unread,
@@ -429,7 +429,7 @@ async function examinations(authed: Authed): Promise<AttentionItem[]> {
       id: "condonations",
       priority: "action",
       title: `${pluralize(pending.length, "condonation request")} to decide`,
-      detail: "Students within 10 points of their attendance requirement",
+      detail: "Students whose attendance is a little below what is needed",
       href: "/exams",
       cta: "Decide",
       count: pending.length,
@@ -439,8 +439,8 @@ async function examinations(authed: Authed): Promise<AttentionItem[]> {
     items.push({
       id: "eligibility",
       priority: "important",
-      title: `${pluralize(blocked, "student")} not yet eligible for the November exams`,
-      detail: "Below the requirement without an approved condonation",
+      title: `${pluralize(blocked, "student")} cannot sit the November exams yet`,
+      detail: "Attendance too low and no special permission approved",
       href: "/exams",
       cta: "Review",
       count: blocked,

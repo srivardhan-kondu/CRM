@@ -84,13 +84,13 @@ export default async function HomePage({
   }[workspace];
   const purpose = {
     admin: "Access control and platform health.",
-    leadership: "How the campus is doing, what needs attention, and what to do next.",
-    department: "Department health, students who need attention, and decisions waiting on you.",
-    class: `Your class, ${home.name.replace(/^Section /, "")}: health, today's classes and students to follow up.`,
-    teaching: "Today's classes, attendance to mark, and students falling behind in your courses.",
-    self: "What needs your attention today.",
-    guardian: "Attendance, exams and messages for your child.",
-    examinations: "Examinations in progress and decisions waiting on the exam cell.",
+    leadership: "Here is how the campus is doing, and what needs you today.",
+    department: "Here is how your department is doing, and what needs you today.",
+    class: `Here is how your class, ${home.name.replace(/^Section /, "")}, is doing today.`,
+    teaching: "Here are your classes and what needs you today.",
+    self: "Here is what needs your attention today.",
+    guardian: "Here is how your child is doing.",
+    examinations: "Here are the examinations and what needs you today.",
     operations: `${active.roleName} workspace.`,
   }[workspace];
 
@@ -98,11 +98,11 @@ export default async function HomePage({
     <div className="animate-page-in">
       <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-muted text-xs font-medium">
+          <p className="text-muted text-[15px] font-medium">
             {dateLabel(now)} · {context.term}
           </p>
-          <h1 className="text-foreground mt-1 text-2xl font-semibold tracking-tight">{title}</h1>
-          <p className="text-muted mt-1 text-sm">{purpose}</p>
+          <h1 className="text-foreground mt-1 text-3xl font-semibold tracking-tight">{title}</h1>
+          <p className="text-muted mt-1 text-[17px]">{purpose}</p>
         </div>
         {scopes.length > 1 && (
           <ScopeSelect

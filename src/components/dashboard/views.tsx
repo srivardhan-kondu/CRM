@@ -1,25 +1,7 @@
-import {
-  BookOpen,
-  CalendarCheck,
-  ClipboardCheck,
-  Inbox,
-  ListChecks,
-  MessageSquareText,
-  PenSquare,
-  Sparkles,
-  UserRoundSearch,
-} from "lucide-react";
 import Link from "next/link";
-import { ActionRequired, AttentionCard, WorkQueue, type WorkItem } from "@/components/os/attention";
-import {
-  ActivityList,
-  AnnouncementList,
-  Panel,
-  PlannedCard,
-  QuickAction,
-  StudentRiskCard,
-} from "@/components/os/cards";
-import { CampusPulse, MetricCard, TrendCard } from "@/components/os/metrics";
+import { ActivityList, AnnouncementList, Panel, StudentRiskCard } from "@/components/os/cards";
+import { TrendCard } from "@/components/os/metrics";
+import { Glance, HealthBanner, MoreDetails, Section, TodoList } from "@/components/os/simple";
 import { Meter } from "@/components/ui/misc";
 import { getCurrentTerm } from "@/domains/academics/context";
 import { listFaculty } from "@/domains/academics/repository";
@@ -28,7 +10,7 @@ import { weekdayName } from "@/domains/attendance/calendar";
 import { projectAttendance } from "@/domains/attendance/projection";
 import { classesOn } from "@/domains/attendance/repository";
 import { assessmentWorkspace, studentExams } from "@/domains/exams/repository";
-import type { AttentionItem } from "@/domains/insights/attention";
+import type { Pulse } from "@/domains/insights/attention";
 import {
   attentionFor,
   pulseFor,
@@ -42,7 +24,6 @@ import { subjectsFor, visibleStudents } from "@/domains/students/repository";
 import type { Student } from "@/domains/students/types";
 import type { WorkspaceKind } from "@/lib/authz/catalogue";
 import type { Authed } from "@/lib/authz/context";
-import { holdsAnywhere } from "@/lib/authz/engine";
 import { descendantsOfType, isWithin } from "@/lib/authz/org-tree";
 import type { OrgNode } from "@/lib/authz/types";
 import { institutionNow, institutionToday } from "@/lib/clock";
@@ -50,9 +31,9 @@ import { cn, formatDate, pluralize, sectionLabel } from "@/lib/utils";
 import { ScheduleList, ThresholdBars, type BarRow } from "./widgets";
 
 /*
- * Role dashboards. Each follows the same order: what needs attention (critical first), what to do, how things are
- * trending, role-specific detail, then announcements and recent activity. Modules from later phases appear as plainly
- * labelled placeholders, never as invented numbers.
+ * Role home pages, kept deliberately simple (the app is used by people of every age and comfort with computers):
+ * one sentence on how things are, a short to-do list with one big button per item, a few large numbers, today's
+ * classes and the latest notices. Charts, comparisons and full lists sit behind "Show more details".
  */
 
 const trendPoints = (points: TrendPoint[]) =>
@@ -64,8 +45,7 @@ const trendPoints = (points: TrendPoint[]) =>
     value: p.value,
   }));
 
-const TREND_DEFINITION =
-  "Present marks ÷ marks recorded per week, before on-duty and medical leave adjustments.";
+const TREND_DEFINITION = "Share of students marked present each week (before leave is counted).";
 
 const riskOrder = (a: Student, b: Student) => {
   const rank = { high: 0, watch: 1, none: 2 } as const;
@@ -76,24 +56,19 @@ function Grid({ children, className }: { children: React.ReactNode; className?: 
   return <div className={cn("grid grid-cols-1 gap-5", className)}>{children}</div>;
 }
 
-async function notices(authed: Authed, n = 4) {
+async function notices(authed: Authed, n = 3) {
   return (await listInbox(authed, "all")).slice(0, n);
 }
 
-/** Attention block (critical and important) beside quick actions, then the action tiles. */
-function AttentionBlock({ items, quick }: { items: AttentionItem[]; quick: React.ReactNode }) {
-  const attention = items.filter((i) => i.priority === "critical" || i.priority === "important");
+function glanceFrom(pulse: Pulse, links: Record<string, string>) {
+  return pulse.vitals.map((v) => ({ ...v, href: links[v.key] }));
+}
+
+function NoticesSection({ items, now }: { items: Awaited<ReturnType<typeof notices>>; now: Date }) {
   return (
-    <>
-      <Grid className="xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
-        <AttentionCard items={attention} />
-        <section aria-label="Quick actions" className="space-y-2">
-          <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Quick actions</h2>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1">{quick}</div>
-        </section>
-      </Grid>
-      <ActionRequired items={items} />
-    </>
+    <Section title="Latest notices" href="/announcements" linkLabel="All notices">
+      <AnnouncementList items={items} now={now} />
+    </Section>
   );
 }
 
@@ -116,7 +91,7 @@ function comparison(
         sublabel: `${list.length} students`,
         value: avg(list),
         href: `/attendance/sections/${code}`,
-        flag: short(list) ? `${short(list)} short` : undefined,
+        flag: short(list) ? `${short(list)} below` : undefined,
       }))
       .sort((a, b) => a.value - b.value);
   return descendantsOfType(authed.tree, unit, by)
@@ -134,7 +109,7 @@ function comparison(
           by === "department"
             ? studentsHref({ department: node.code, sort: "attendance" })
             : `/dashboard?scope=${node.code}`,
-        flag: short(list) ? `${short(list)} short` : undefined,
+        flag: short(list) ? `${short(list)} below` : undefined,
         count: list.length,
       };
     })
@@ -154,7 +129,7 @@ export async function LeadershipDashboard({
   workspace: WorkspaceKind;
 }) {
   const director = authed.ctx.active?.roleKey === "director";
-  const [pulse, attention, snap, inbox, activity] = await Promise.all([
+  const [pulse, todo, snap, inbox, activity] = await Promise.all([
     pulseFor(authed, unit),
     attentionFor(authed, workspace, unit),
     scopeSnapshot(authed, unit),
@@ -164,130 +139,71 @@ export async function LeadershipDashboard({
   const now = institutionNow();
   const department = unit.type === "department";
   const by = department ? "section" : director && unit.type === "institution" ? "campus" : "department";
-  const bars = comparison(authed, unit, snap.readable, by);
   const base = department ? { department: unit.code } : {};
   const risk = snap.highRisk
     .map((r) => r.student)
     .sort(riskOrder)
-    .slice(0, 5);
-  const canPublish = holdsAnywhere(authed.ctx, "announcement:publish");
-
-  const quick = (
-    <>
-      <QuickAction href="/insights" icon={Sparkles} label="Ask CampusOS" hint="Questions about your scope" />
-      <QuickAction href="/approvals" icon={ListChecks} label="Approvals" hint="Decide what's waiting" />
-      {canPublish && <QuickAction href="/announcements/new" icon={PenSquare} label="New announcement" />}
-      <QuickAction
-        href={studentsHref({ ...base, shortage: true, sort: "attendance" })}
-        icon={UserRoundSearch}
-        label="Students below threshold"
-        hint={pluralize(snap.shortage.length, "student")}
-      />
-    </>
-  );
+    .slice(0, 6);
 
   return (
     <div className="space-y-6">
-      <CampusPulse pulse={pulse} title={department ? "Department health" : "Campus health"} />
-      <AttentionBlock items={attention} quick={quick} />
+      <HealthBanner pulse={pulse} />
+      <TodoList items={todo} />
+      <Glance
+        items={glanceFrom(pulse, {
+          attendance: "/attendance",
+          eligibility: studentsHref({ ...base, shortage: true, sort: "attendance" }),
+          risk: studentsHref({ ...base, risk: "high", sort: "attendance" }),
+          operations: "/approvals",
+        })}
+      />
+      <NoticesSection items={inbox} now={now} />
 
-      <Grid className="xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <TrendCard
-          title="Attendance, week by week"
-          points={trendPoints(snap.trend)}
-          threshold={snap.threshold}
-          definition={TREND_DEFINITION}
-          href="/attendance"
-        />
-        <Panel
-          title={
-            by === "campus"
-              ? "Campus comparison"
-              : by === "department"
-                ? "Department performance"
-                : "Sections"
-          }
-          description={`Average attendance, lowest first · line marks the ${snap.threshold}% requirement`}
-          href="/attendance"
-          hrefLabel="Attendance"
-        >
-          <ThresholdBars rows={bars} threshold={snap.threshold} />
-        </Panel>
-      </Grid>
-
-      <Grid className="xl:grid-cols-2">
-        <Panel
-          title="Students needing intervention"
-          description="High risk, with the factors behind each flag"
-          href={studentsHref({ ...base, risk: "high", sort: "attendance" })}
-          hrefLabel={`All ${snap.highRisk.length}`}
-          flush
-        >
-          <StudentRiskCard students={risk} empty="No student crosses the high-risk definition." />
-        </Panel>
-        {department ? (
-          <DepartmentOperations authed={authed} unit={unit} />
-        ) : (
-          <AcademicPerformance authed={authed} unit={unit} rows={snap.readable} />
-        )}
-      </Grid>
-
-      {director && unit.type === "institution" && <Enrollment rows={snap.rows} />}
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        {department ? (
-          <>
-            <PlannedCard
-              title="Mentoring"
-              phase={6}
-              description="Mentor allocation, meetings and interventions for the department's students."
-            />
-            <PlannedCard
-              title="Placements"
-              phase={8}
-              description="Drives, eligibility and offers for the department's final years."
-            />
-            <PlannedCard
-              title="Reports"
-              phase={9}
-              description="Saved department reports and permission-checked exports."
-            />
-          </>
-        ) : (
-          <>
-            <PlannedCard
-              title={director ? "Financial overview" : "Finance"}
-              phase={7}
-              description="Fee collection, dues and concessions. Fee figures shown elsewhere are synthetic until then."
-            />
-            <PlannedCard
-              title={director ? "Placement performance" : "Placements"}
-              phase={8}
-              description="Drives, offers and placement rate by programme."
-            />
-            <PlannedCard
-              title="Accreditation"
-              phase={9}
-              description="NAAC/NBA evidence with owners and freshness."
-            />
-          </>
-        )}
-      </div>
-
-      <Grid className="xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <Panel
-          title="Announcements"
-          description="Active notices in your scope"
-          href="/announcements"
-          hrefLabel="Inbox"
-          flush
-        >
-          <AnnouncementList items={inbox} now={now} />
-        </Panel>
-        <Panel title="Recent activity" flush>
+      <MoreDetails>
+        <Grid className="xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          <TrendCard
+            title="Attendance, week by week"
+            points={trendPoints(snap.trend)}
+            threshold={snap.threshold}
+            definition={TREND_DEFINITION}
+            href="/attendance"
+          />
+          <Panel
+            title={
+              by === "campus"
+                ? "Attendance by campus"
+                : by === "department"
+                  ? "Attendance by department"
+                  : "Attendance by section"
+            }
+            description={`Lowest first · the line marks ${snap.threshold}%`}
+            href="/attendance"
+            hrefLabel="Attendance"
+          >
+            <ThresholdBars rows={comparison(authed, unit, snap.readable, by)} threshold={snap.threshold} />
+          </Panel>
+        </Grid>
+        <Grid className="xl:grid-cols-2">
+          <Panel
+            title="Students who need extra help"
+            description="And why, for each student"
+            href={studentsHref({ ...base, risk: "high", sort: "attendance" })}
+            hrefLabel={`All ${snap.highRisk.length}`}
+            flush
+          >
+            <StudentRiskCard students={risk} empty="No student needs extra help right now." />
+          </Panel>
+          {department ? (
+            <DepartmentOperations authed={authed} unit={unit} />
+          ) : (
+            <AcademicPerformance authed={authed} unit={unit} rows={snap.readable} />
+          )}
+        </Grid>
+        {director && unit.type === "institution" && <Enrollment rows={snap.rows} />}
+        <Panel title="What happened recently" flush>
           <ActivityList items={activity} now={now} />
         </Panel>
-      </Grid>
+      </MoreDetails>
     </div>
   );
 }
@@ -308,29 +224,27 @@ function AcademicPerformance({ authed, unit, rows }: { authed: Authed; unit: Org
     .filter((d) => d.students > 0)
     .sort((a, b) => a.cgpa - b.cgpa);
   return (
-    <Panel
-      title="Academic performance"
-      description="Mean CGPA and students with backlogs, by department"
-      flush
-    >
-      <table className="w-full text-sm">
+    <Panel title="Marks by department" description="Average CGPA, and students with failed subjects" flush>
+      <table className="w-full text-[15px]">
         <thead>
-          <tr className="text-subtle border-border border-b text-left text-xs">
+          <tr className="text-muted border-border border-b text-left text-sm">
             <th className="px-5 py-2 font-medium">Department</th>
             <th className="px-3 py-2 text-right font-medium">CGPA</th>
-            <th className="px-5 py-2 text-right font-medium">With backlogs</th>
+            <th className="px-5 py-2 text-right font-medium">With failed subjects</th>
           </tr>
         </thead>
         <tbody className="divide-border divide-y">
           {depts.map((d) => (
             <tr key={d.code}>
-              <td className="px-5 py-2">
+              <td className="px-5 py-2.5">
                 <Link href={studentsHref({ department: d.code, sort: "cgpa" })} className="hover:text-brand">
                   {d.name}
                 </Link>
               </td>
-              <td className="tabular px-3 py-2 text-right font-medium">{d.cgpa ? d.cgpa.toFixed(2) : "—"}</td>
-              <td className="tabular text-muted px-5 py-2 text-right">
+              <td className="tabular px-3 py-2.5 text-right font-semibold">
+                {d.cgpa ? d.cgpa.toFixed(2) : "—"}
+              </td>
+              <td className="tabular text-muted px-5 py-2.5 text-right">
                 {d.backlogs} of {d.students}
               </td>
             </tr>
@@ -341,7 +255,7 @@ function AcademicPerformance({ authed, unit, rows }: { authed: Authed; unit: Org
   );
 }
 
-/** Faculty workload and internal-assessment progress for a department. */
+/** Faculty workload and internal-marks progress for a department. */
 async function DepartmentOperations({ authed, unit }: { authed: Authed; unit: OrgNode }) {
   const term = await getCurrentTerm(authed.ctx.tenantId);
   const [faculty, marks] = await Promise.all([
@@ -355,8 +269,8 @@ async function DepartmentOperations({ authed, unit }: { authed: Authed; unit: Or
   const approved = components.filter((c) => c.status === "approved").length;
   return (
     <Panel
-      title="Faculty workload"
-      description={`Weekly hours against each member's cap · internal marks ${approved}/${components.length} approved`}
+      title="Teaching hours"
+      description={`Hours per week against each teacher's limit · ${approved} of ${components.length} mark sheets approved`}
       href="/faculty"
       flush
     >
@@ -364,20 +278,20 @@ async function DepartmentOperations({ authed, unit }: { authed: Authed; unit: Or
         {mine.slice(0, 6).map((f) => {
           const load = (f.hours / f.maxWeeklyHours) * 100;
           return (
-            <li key={f.userId} className="px-5 py-2.5">
-              <div className="flex items-baseline justify-between gap-3 text-sm">
+            <li key={f.userId} className="px-5 py-3">
+              <div className="flex items-baseline justify-between gap-3 text-[15px]">
                 <Link href={`/faculty/${f.userId}`} className="hover:text-brand truncate">
                   {f.name}
                 </Link>
-                <span className="tabular text-muted shrink-0 text-xs">
-                  {f.hours}/{f.maxWeeklyHours} h
+                <span className="tabular text-muted shrink-0 text-sm">
+                  {f.hours} of {f.maxWeeklyHours} hours
                 </span>
               </div>
               <Meter
                 value={load}
                 tone={load > 100 ? "danger" : load > 90 ? "warning" : "brand"}
-                label={`${f.name} load ${load.toFixed(0)}%`}
-                className="mt-1"
+                label={`${f.name}: ${load.toFixed(0)}% of their limit`}
+                className="mt-1.5"
               />
             </li>
           );
@@ -391,13 +305,13 @@ function Enrollment({ rows }: { rows: Visible[] }) {
   const batches = [...groupBy(rows, (r) => r.student.batch)].sort(([a], [b]) => a.localeCompare(b));
   const max = Math.max(1, ...batches.map(([, l]) => l.length));
   return (
-    <Panel title="Enrollment by batch" description="Enrolled students by admission batch">
-      <ul className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
+    <Panel title="Students by year of joining">
+      <ul className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
         {batches.map(([batch, list]) => (
           <li key={batch}>
-            <div className="flex justify-between text-xs">
+            <div className="flex justify-between text-sm">
               <span className="text-muted">{batch}</span>
-              <span className="tabular font-medium">{list.length}</span>
+              <span className="tabular font-semibold">{list.length}</span>
             </div>
             <Meter
               value={(list.length / max) * 100}
@@ -415,13 +329,12 @@ function Enrollment({ rows }: { rows: Visible[] }) {
 
 export async function ClassInchargeDashboard({ authed, unit }: { authed: Authed; unit: OrgNode }) {
   const sectionId = unit.code;
-  const [pulse, attention, snap, today, inbox, activity] = await Promise.all([
+  const [pulse, todo, snap, today, inbox] = await Promise.all([
     pulseFor(authed, unit),
     attentionFor(authed, "class", unit),
     scopeSnapshot(authed, unit),
     classesOn(authed, { sectionCode: sectionId }),
-    notices(authed, 3),
-    recentActivity(authed),
+    notices(authed),
   ]);
   const now = institutionNow();
   const followUp = snap.rows
@@ -429,63 +342,49 @@ export async function ClassInchargeDashboard({ authed, unit }: { authed: Authed;
     .map((r) => r.student)
     .sort(riskOrder)
     .slice(0, 6);
-  const quick = (
-    <>
-      <QuickAction href="/attendance" icon={CalendarCheck} label="Mark attendance" hint="Today's classes" />
-      <QuickAction href="/parent-communication" icon={MessageSquareText} label="Message guardians" />
-      <QuickAction href={`/attendance/sections/${sectionId}`} icon={BookOpen} label="Class register" />
-      <QuickAction href="/announcements/new" icon={PenSquare} label="Notice to the class" />
-    </>
-  );
   return (
     <div className="space-y-6">
-      <CampusPulse pulse={pulse} title="Class health" />
-      <AttentionBlock items={attention} quick={quick} />
-      <Grid className="xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <Panel
-          title="Today's timetable"
-          description={today ? `${weekdayName(today.date)} · ${unit.name}` : unit.name}
-          href={`/attendance/sections/${sectionId}`}
-          hrefLabel="Register"
-          flush
-        >
-          <ScheduleList
-            classes={today?.classes ?? []}
-            now={institutionToday().time}
-            emptyTitle={today?.holiday ? `Holiday — ${today.holiday}` : undefined}
-          />
-        </Panel>
-        <TrendCard
-          title="Class attendance, week by week"
-          points={trendPoints(snap.trend)}
-          threshold={snap.threshold}
-          definition={TREND_DEFINITION}
+      <HealthBanner pulse={pulse} />
+      <TodoList items={todo} />
+      <Section
+        title={today ? `Today's classes — ${weekdayName(today.date)}` : "Today's classes"}
+        href={`/attendance/sections/${sectionId}`}
+        linkLabel="Class register"
+      >
+        <ScheduleList
+          classes={today?.classes ?? []}
+          now={institutionToday().time}
+          emptyTitle={today?.holiday ? `Holiday — ${today.holiday}` : undefined}
         />
-      </Grid>
-      <Grid className="xl:grid-cols-2">
-        <Panel
-          title="Students to follow up"
-          description="Any risk factor, most urgent first"
-          href={studentsHref({ sectionId, sort: "attendance" })}
-          hrefLabel="Class list"
-          flush
-        >
-          <StudentRiskCard students={followUp} empty="Everyone in your class is on track." />
-        </Panel>
-        <div className="space-y-3">
-          <PlannedCard
-            title="Mentoring"
-            phase={6}
-            description="Mentor meetings, agreed actions and interventions for your class."
+      </Section>
+      <Glance
+        items={glanceFrom(pulse, {
+          attendance: `/attendance/sections/${sectionId}`,
+          eligibility: studentsHref({ sectionId, shortage: true, sort: "attendance" }),
+          risk: studentsHref({ sectionId, risk: "high" }),
+          operations: "/approvals",
+        })}
+      />
+      <NoticesSection items={inbox} now={now} />
+      <MoreDetails>
+        <Grid className="xl:grid-cols-2">
+          <TrendCard
+            title="Class attendance, week by week"
+            points={trendPoints(snap.trend)}
+            threshold={snap.threshold}
+            definition={TREND_DEFINITION}
           />
-          <Panel title="Announcements" href="/announcements" hrefLabel="Inbox" flush>
-            <AnnouncementList items={inbox} now={now} />
+          <Panel
+            title="Students to keep an eye on"
+            description="And why, for each student"
+            href={studentsHref({ sectionId, sort: "attendance" })}
+            hrefLabel="Class list"
+            flush
+          >
+            <StudentRiskCard students={followUp} empty="Everyone in your class is doing fine." />
           </Panel>
-        </div>
-      </Grid>
-      <Panel title="Recent activity" flush>
-        <ActivityList items={activity} now={now} />
-      </Panel>
+        </Grid>
+      </MoreDetails>
     </div>
   );
 }
@@ -499,10 +398,10 @@ export async function FacultyDashboard({ authed, unit }: { authed: Authed; unit:
     ...new Set(teaching.map((a) => authed.tree.byId.get(a.orgUnitId)?.code).filter((c): c is string => !!c)),
   ];
   const courseCodes = [...new Set(teaching.flatMap((a) => a.courseCodes ?? []))];
-  const [attention, today, inbox] = await Promise.all([
+  const [todo, today, inbox] = await Promise.all([
     attentionFor(authed, "teaching", unit),
     classesOn(authed, { mine: true }),
-    notices(authed, 3),
+    notices(authed),
   ]);
   const now = institutionNow();
   const rows = (await visibleStudents(authed)).filter((v) => sectionIds.includes(v.student.sectionId));
@@ -521,109 +420,84 @@ export async function FacultyDashboard({ authed, unit }: { authed: Authed; unit:
   ).flat();
   const below = courseRows.filter((r) => r.pct < r.student.attendanceThreshold).sort((a, b) => a.pct - b.pct);
   const avg = courseRows.reduce((n, r) => n + r.pct, 0) / Math.max(1, courseRows.length);
-  const schedule = today?.classes ?? [];
-  const toMark = schedule.filter((c) => c.window === "open" && c.canMark && !c.recorded).length;
-  const quick = (
-    <>
-      <QuickAction
-        href="/attendance"
-        icon={CalendarCheck}
-        label="Mark attendance"
-        hint={toMark ? `${toMark} ready now` : "Today's classes"}
-      />
-      <QuickAction href="/marks" icon={ClipboardCheck} label="Enter marks" hint="Internal assessment" />
-      <QuickAction
-        href="/my/courses"
-        icon={BookOpen}
-        label="My courses"
-        hint={courseCodes.join(", ") || "No courses this term"}
-      />
-      <QuickAction href="/tasks" icon={ListChecks} label="Tasks" />
-    </>
-  );
   return (
     <div className="space-y-6">
-      <AttentionBlock items={attention} quick={quick} />
-      <Grid className="xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <TodoList items={todo} />
+      <Section title="Today's classes" href="/attendance" linkLabel="Attendance">
+        <ScheduleList
+          classes={today?.classes ?? []}
+          now={institutionToday().time}
+          showSection
+          emptyTitle={today?.holiday ? `Holiday — ${today.holiday}` : undefined}
+        />
+      </Section>
+      <Glance
+        items={[
+          {
+            key: "students",
+            label: "Students you teach",
+            value: String(rows.length),
+            note: `In ${pluralize(sectionIds.length, "section")} · ${courseCodes.join(", ") || "no courses this term"}`,
+            href: "/my/courses",
+          },
+          {
+            key: "attendance",
+            label: "Attendance in your classes",
+            value: courseRows.length ? `${avg.toFixed(1)}%` : "—",
+            note: "Average for the courses you teach",
+            href: "/my/courses",
+          },
+          {
+            key: "below",
+            label: "Students below 75%",
+            value: String(below.length),
+            note: "In at least one of your courses",
+            status: below.length ? "watch" : "good",
+            href: "/my/courses",
+          },
+        ]}
+      />
+      <NoticesSection items={inbox} now={now} />
+      <MoreDetails
+        label="Show students below the attendance needed"
+        hint="Who they are, and how many classes each must attend"
+      >
         <Panel
-          title="Today's classes"
-          description="Mark attendance once a class starts, on the same day"
-          href="/tasks"
-          hrefLabel="Tasks"
-          flush
-        >
-          <ScheduleList
-            classes={schedule}
-            now={institutionToday().time}
-            showSection
-            emptyTitle={today?.holiday ? `Holiday — ${today.holiday}` : undefined}
-          />
-        </Panel>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
-          <MetricCard
-            label="Attendance in your courses"
-            value={courseRows.length ? `${avg.toFixed(1)}%` : "—"}
-            context={`${pluralize(rows.length, "student")} across ${pluralize(sectionIds.length, "section")}`}
-            definition="Mean subject attendance of your students in the courses you teach"
-            href="/my/courses"
-          />
-          <MetricCard
-            label="Below the requirement"
-            value={below.length}
-            context="In at least one of your courses"
-            definition="Students under their programme threshold in a course you teach"
-            status={below.length ? "watch" : "good"}
-            href="/my/courses"
-          />
-        </div>
-      </Grid>
-      <Grid className="xl:grid-cols-2">
-        <Panel
-          title="Shortage in your courses"
-          description="Classes each student must attend consecutively to recover"
+          title="Students below the attendance needed"
+          description="And how many classes each must attend to catch up"
           flush
         >
           {below.length === 0 ? (
-            <p className="text-muted px-5 py-8 text-center text-sm">
-              No student is below the requirement in your courses.
+            <p className="text-muted px-5 py-8 text-center text-[15px]">
+              No student is below what is needed in your courses.
             </p>
           ) : (
             <ul className="divide-border divide-y">
-              {below.slice(0, 6).map((r) => (
+              {below.slice(0, 10).map((r) => (
                 <li
                   key={`${r.student.id}-${r.subj.courseCode}`}
-                  className="flex items-center gap-3 px-5 py-2.5"
+                  className="flex items-center gap-3 px-5 py-3"
                 >
                   <Link href={`/students/${r.student.id}`} className="hover:text-brand min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{r.student.name}</p>
-                    <p className="text-subtle text-xs">
-                      {r.subj.courseCode} · {r.student.sectionLabel} · {r.subj.attended}/{r.subj.held}{" "}
-                      attended
+                    <p className="truncate text-[15px] font-semibold">{r.student.name}</p>
+                    <p className="text-muted text-sm">
+                      {r.subj.courseCode} · {r.student.sectionLabel} · came to {r.subj.attended} of{" "}
+                      {r.subj.held}
                     </p>
                   </Link>
-                  <span className="text-danger tabular text-sm font-medium">{r.pct.toFixed(0)}%</span>
-                  <span className="text-muted w-24 text-right text-xs">attend next {r.mustAttend}</span>
+                  <span className="text-danger tabular text-[15px] font-semibold">{r.pct.toFixed(0)}%</span>
+                  <span className="text-muted w-32 text-right text-sm">must attend next {r.mustAttend}</span>
                 </li>
               ))}
             </ul>
           )}
         </Panel>
-        <div className="space-y-3">
-          <PlannedCard
-            title="Assignments"
-            phase={11}
-            description="Coursework and submissions, through the LMS integration."
-          />
-          <Panel title="Announcements" href="/announcements" hrefLabel="Inbox" flush>
-            <AnnouncementList items={inbox} now={now} />
-          </Panel>
-        </div>
-      </Grid>
+      </MoreDetails>
     </div>
   );
 }
 
-/* ---------- Student and guardian: My Day ---------- */
+/* ---------- Student and guardian ---------- */
 
 export async function StudentDashboard({
   authed,
@@ -637,143 +511,115 @@ export async function StudentDashboard({
   const { student: me } = record;
   const threshold = me.attendanceThreshold;
   const unit = authed.tree.byCode.get(me.sectionId) ?? authed.tree.root;
-  const [attention, subjects, today, inbox, exams] = await Promise.all([
+  const [todo, subjects, today, inbox, exams] = await Promise.all([
     attentionFor(authed, workspace, unit, record),
     subjectsFor(authed, record),
     classesOn(authed, { sectionCode: me.sectionId }),
-    notices(authed, 4),
+    notices(authed),
     studentExams(authed, record),
   ]);
   const now = institutionNow();
   const projected = subjects.map((s) => ({ ...s, ...projectAttendance(s.attended, s.held, threshold) }));
   const nowDate = now.toISOString().slice(0, 10);
-  const papers: WorkItem[] = (exams?.sittings ?? [])
-    .flatMap((s) => s.papers.map((p) => ({ ...p, event: s.event })))
+  const nextPaper = (exams?.sittings ?? [])
+    .flatMap((s) => s.papers)
     .filter((p) => p.slot && p.slot.date >= nowDate)
-    .slice(0, 5)
-    .map((p) => ({
-      id: p.id,
-      title: `${p.courseCode} ${p.courseName}`,
-      meta: p.event.name,
-      href: "/my/exams",
-      state: { label: `${formatDate(p.slot!.date)} · ${p.slot!.session}`, tone: "neutral" },
-    }));
+    .sort((a, b) => a.slot!.date.localeCompare(b.slot!.date))[0];
   const guardian = workspace === "guardian";
-  const quick = (
-    <>
-      <QuickAction
-        href="/my/attendance"
-        icon={CalendarCheck}
-        label="Attendance"
-        hint={`${me.attendancePct.toFixed(1)}% overall`}
-      />
-      <QuickAction
-        href="/my/exams"
-        icon={ClipboardCheck}
-        label="Exams"
-        hint={exams?.maySit === false ? "Eligibility at risk" : "Timetable and eligibility"}
-      />
-      <QuickAction href="/announcements?view=important" icon={Inbox} label="Inbox" />
-      {guardian ? (
-        <QuickAction href="/my/messages" icon={MessageSquareText} label="Messages" hint="From the college" />
-      ) : (
-        <QuickAction
-          href="/my/academics"
-          icon={BookOpen}
-          label="Results"
-          hint={me.cgpa ? `CGPA ${me.cgpa.toFixed(2)}` : "Semester results"}
-        />
-      )}
-    </>
-  );
+  const short = me.attendancePct < threshold;
+
   return (
     <div className="space-y-6">
-      <AttentionBlock items={attention} quick={quick} />
-      <Grid className="xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+      <TodoList items={todo} />
+      <Section
+        title={guardian ? "Classes today" : "My classes today"}
+        href="/my/timetable"
+        linkLabel="Full timetable"
+      >
+        <ScheduleList
+          classes={today?.classes ?? []}
+          now={institutionToday().time}
+          emptyTitle={today?.holiday ? `Holiday — ${today.holiday}` : undefined}
+        />
+      </Section>
+      <Glance
+        items={[
+          {
+            key: "attendance",
+            label: "Attendance",
+            value: `${me.attendancePct.toFixed(1)}%`,
+            note: short ? `Below the ${threshold}% needed` : `Above the ${threshold}% needed`,
+            status: short ? "critical" : "good",
+            href: "/my/attendance",
+          },
+          {
+            key: "cgpa",
+            label: "CGPA",
+            value: me.cgpa > 0 ? me.cgpa.toFixed(2) : "—",
+            note: me.backlogs
+              ? `${me.backlogs} subject${me.backlogs > 1 ? "s" : ""} to clear`
+              : "No subjects to clear",
+            status: me.backlogs ? "watch" : "good",
+            href: "/my/academics",
+          },
+          {
+            key: "exam",
+            label: "Next exam",
+            value: nextPaper ? formatDate(nextPaper.slot!.date).replace(/ \d{4}$/, "") : "—",
+            note: nextPaper ? `${nextPaper.courseCode} ${nextPaper.courseName}` : "No exam scheduled yet",
+            href: "/my/exams",
+          },
+        ]}
+      />
+      <NoticesSection items={inbox} now={now} />
+      <MoreDetails
+        label="Show attendance for each subject"
+        hint="Subject by subject, with how many classes can still be missed"
+      >
         <Panel
-          title={guardian ? "Today's classes" : "My day"}
-          description={today ? `${weekdayName(today.date)} · ${me.sectionLabel}` : me.sectionLabel}
-          flush
-        >
-          <ScheduleList
-            classes={today?.classes ?? []}
-            now={institutionToday().time}
-            emptyTitle={today?.holiday ? `Holiday — ${today.holiday}` : undefined}
-          />
-        </Panel>
-        <Panel
-          title="Attendance by subject"
-          description={`Against the ${threshold}% requirement`}
+          title="Attendance for each subject"
+          description={`You need ${threshold}% in every subject`}
           href="/my/attendance"
-          hrefLabel="Details & leave"
+          hrefLabel="Details and leave"
           flush
         >
           <ul className="divide-border divide-y">
             {projected.map((s) => {
-              const short = s.pct < threshold;
+              const below = s.pct < threshold;
               return (
-                <li key={s.courseCode} className="px-5 py-2.5">
+                <li key={s.courseCode} className="px-5 py-3">
                   <div className="flex items-baseline justify-between gap-3">
-                    <p className="truncate text-sm">
-                      {s.courseName} <span className="text-subtle font-mono text-xs">{s.courseCode}</span>
-                    </p>
-                    <span className={cn("tabular text-sm font-semibold", short && "text-danger")}>
+                    <p className="truncate text-[15px] font-medium">{s.courseName}</p>
+                    <span className={cn("tabular text-[17px] font-semibold", below && "text-danger")}>
                       {s.pct.toFixed(1)}%
                     </span>
                   </div>
                   <Meter
                     value={s.pct}
-                    tone={short ? "danger" : s.canMiss <= 2 ? "warning" : "brand"}
+                    tone={below ? "danger" : s.canMiss <= 2 ? "warning" : "brand"}
                     label={`${s.courseName} attendance`}
-                    className="mt-1"
+                    className="mt-1.5"
                   />
-                  <p className={cn("mt-0.5 text-xs", short ? "text-danger" : "text-subtle")}>
-                    {short
+                  <p className={cn("mt-1 text-sm", below ? "text-danger" : "text-muted")}>
+                    {below
                       ? `Attend the next ${s.mustAttend} classes to reach ${threshold}%`
                       : s.canMiss === 0
-                        ? "Can't miss the next class"
-                        : `Can miss up to ${s.canMiss} more`}
+                        ? "Don't miss the next class"
+                        : `Can miss ${s.canMiss} more and still be fine`}
                   </p>
                 </li>
               );
             })}
           </ul>
         </Panel>
-      </Grid>
-      <Grid className="xl:grid-cols-2">
-        <WorkQueue
-          title="Upcoming exams"
-          items={papers}
-          href="/my/exams"
-          empty={{
-            title: "No upcoming papers",
-            description: "Your exam timetable appears here once it's published.",
-          }}
-        />
-        <Panel title="Announcements" href="/announcements" hrefLabel="Inbox" flush>
-          <AnnouncementList items={inbox} now={now} />
-        </Panel>
-      </Grid>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <PlannedCard
-          title="Assignments"
-          phase={11}
-          description="Coursework and submissions, through the LMS integration."
-        />
-        <PlannedCard title="Fees" phase={7} description="Invoices, dues, receipts and online payment." />
-        <PlannedCard
-          title="Placements"
-          phase={8}
-          description="Drives you're eligible for, applications and offers."
-        />
-      </div>
+      </MoreDetails>
     </div>
   );
 }
 
 /* ---------- Shared blocks for other workspaces ---------- */
 
-/** Attention and actions for workspaces whose own detail is rendered separately (exam cell, admin, offices). */
+/** The to-do list for workspaces whose own detail is rendered separately (exam cell, admin, offices). */
 export async function AttentionOnly({
   authed,
   workspace,
@@ -783,30 +629,20 @@ export async function AttentionOnly({
   workspace: WorkspaceKind;
   unit: OrgNode;
 }) {
-  const attention = await attentionFor(authed, workspace, unit);
-  const quick = (
-    <>
-      <QuickAction href="/insights" icon={Sparkles} label="Ask CampusOS" />
-      <QuickAction href="/announcements" icon={Inbox} label="Inbox" />
-      {holdsAnywhere(authed.ctx, "announcement:publish") && (
-        <QuickAction href="/announcements/new" icon={PenSquare} label="New announcement" />
-      )}
-    </>
-  );
-  return <AttentionBlock items={attention} quick={quick} />;
+  return <TodoList items={await attentionFor(authed, workspace, unit)} />;
 }
 
 export async function AnnouncementsAndActivity({ authed }: { authed: Authed }) {
   const [inbox, activity] = await Promise.all([notices(authed), recentActivity(authed)]);
   const now = institutionNow();
   return (
-    <Grid className="xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-      <Panel title="Announcements" href="/announcements" hrefLabel="Inbox" flush>
-        <AnnouncementList items={inbox} now={now} />
-      </Panel>
-      <Panel title="Recent activity" flush>
-        <ActivityList items={activity} now={now} />
-      </Panel>
-    </Grid>
+    <>
+      <NoticesSection items={inbox} now={now} />
+      <MoreDetails label="Show what happened recently" hint="Recent notices, messages and decisions">
+        <Panel title="What happened recently" flush>
+          <ActivityList items={activity} now={now} />
+        </Panel>
+      </MoreDetails>
+    </>
   );
 }

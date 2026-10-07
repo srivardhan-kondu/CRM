@@ -41,7 +41,7 @@ function ItemCard({ item, now, actions }: { item: ApprovalItem; now: Date; actio
             {item.status === "pending" && (
               <span className={cn("text-2xs font-medium", item.overdue ? "text-danger" : "text-muted")}>
                 {item.overdue
-                  ? `SLA breached ${formatRelative(item.dueAt, now)}`
+                  ? `Overdue — was due ${formatRelative(item.dueAt, now)}`
                   : `Due ${formatRelative(item.dueAt, now)}`}
               </span>
             )}
@@ -188,7 +188,7 @@ export default async function ApprovalsPage() {
         {q.approver && (
           <WidgetCard
             title="Waiting for you"
-            description={`${pluralize(q.waiting.length, "item")} · ${q.waiting.filter((i) => i.overdue).length} past SLA · most urgent first`}
+            description={`${pluralize(q.waiting.length, "item")} · ${q.waiting.filter((i) => i.overdue).length} overdue · most urgent first`}
             flush
           >
             {q.waiting.length === 0 ? (

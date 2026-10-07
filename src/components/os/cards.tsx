@@ -62,22 +62,25 @@ export function AnnouncementCard({ a, now }: { a: NoticeLike; now: Date }) {
   return (
     <Link
       href={`/announcements?view=all&id=${a.id}`}
-      className="hover:bg-surface-muted block px-5 py-3 transition-colors"
+      className="hover:bg-surface-muted block px-5 py-3.5 transition-colors"
     >
       <div className="flex items-center gap-2">
         {unread && <span className="bg-brand size-2 shrink-0 rounded-full" aria-label="Unread" />}
         <SeverityBadge severity={a.severity} />
-        <span className="text-subtle truncate text-xs">
+        <span className="text-muted truncate text-sm">
           {a.authorRole} · {formatRelative(a.publishedAt, now)}
         </span>
       </div>
       <p
-        className={cn("text-foreground mt-1 line-clamp-1 text-sm", unread ? "font-semibold" : "font-medium")}
+        className={cn(
+          "text-foreground mt-1 line-clamp-2 text-[17px] leading-snug",
+          unread ? "font-semibold" : "font-medium",
+        )}
       >
         {a.title}
       </p>
-      <p className="text-muted line-clamp-1 text-xs">{a.summary}</p>
-      <div className="text-subtle mt-1 flex flex-wrap gap-3 text-xs">
+      <p className="text-muted mt-0.5 line-clamp-2 text-[15px]">{a.summary}</p>
+      <div className="text-muted mt-1.5 flex flex-wrap gap-4 text-sm">
         {a.deadline && new Date(a.deadline) > now && (
           <span className="text-warning-soft-foreground inline-flex items-center gap-1">
             <Clock aria-hidden className="size-3" /> Due {formatRelative(a.deadline, now)}
@@ -235,7 +238,7 @@ export function ActivityList({
             className="bg-border-strong absolute top-1.5 -left-[4px] size-[7px] rounded-full"
           />
           <Link href={i.href} className="hover:text-brand block">
-            <p className="line-clamp-1 text-sm">{i.title}</p>
+            <p className="line-clamp-1 text-[15px]">{i.title}</p>
             <p className="text-subtle text-xs">
               {i.detail} · <time dateTime={i.at}>{formatRelative(i.at, now)}</time>
             </p>
