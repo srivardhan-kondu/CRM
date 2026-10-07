@@ -1,21 +1,11 @@
-import {
-  AlertTriangle,
-  BookOpen,
-  Briefcase,
-  ClipboardList,
-  FileText,
-  HeartHandshake,
-  Inbox,
-  Mail,
-  Phone,
-  ShieldCheck,
-  UserRound,
-  Wallet,
-} from "lucide-react";
+import { AlertTriangle, BookOpen, Mail, Phone, UserRound } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DrillLink, NoticeList, WidgetCard } from "@/components/dashboard/widgets";
-import { studentAcademics } from "@/domains/exams/repository";
+import Link from "next/link";
+import { PlannedCard } from "@/components/os/cards";
+import { studentAcademics, studentExams } from "@/domains/exams/repository";
+import { summarizeStudent } from "@/domains/students/summary";
 import { PageHeader } from "@/components/patterns/page-header";
 import { FeeBadge, RiskBadge, StudentStatusBadge } from "@/components/patterns/status";
 import { Timeline } from "@/components/patterns/timeline";
@@ -37,19 +27,31 @@ import { cn, formatDate, formatINR } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Student 360" };
 
-const UPCOMING = [
-  { icon: ClipboardList, label: "Assessment & results", phase: 4 },
-  { icon: HeartHandshake, label: "Mentoring & interventions", phase: 6 },
-  { icon: ShieldCheck, label: "Conduct & welfare", phase: 6 },
-  { icon: Wallet, label: "Fee ledger & receipts", phase: 7 },
-  { icon: FileText, label: "Documents & certificates", phase: 7 },
-  { icon: Inbox, label: "Requests", phase: 7 },
-  { icon: Briefcase, label: "Placements & internships", phase: 8 },
-];
+const TABS = [
+  { key: "overview", label: "Overview" },
+  { key: "academics", label: "Academics" },
+  { key: "attendance", label: "Attendance" },
+  { key: "exams", label: "Exams" },
+  { key: "fees", label: "Fees" },
+  { key: "placement", label: "Placement" },
+  { key: "mentoring", label: "Mentoring" },
+  { key: "communication", label: "Communication" },
+  { key: "documents", label: "Documents" },
+] as const;
 
-export default async function Student360Page({ params }: { params: Promise<{ id: string }> }) {
+type TabKey = (typeof TABS)[number]["key"];
+
+export default async function Student360Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const authed = await requireAuth();
   const { id } = await params;
+  const rawTab = (await searchParams).tab;
+  const tab: TabKey = TABS.find((x) => x.key === rawTab)?.key ?? "overview";
   // Authorizes and audits the read. Unknown and out-of-scope IDs are indistinguishable: both 404.
   const detail = await getStudentDetail(authed, id);
   if (!detail) notFound();
@@ -83,6 +85,9 @@ export default async function Student360Page({ params }: { params: Promise<{ id:
     isSelf ? null : messagesForStudent(authed, s, fields.guardian),
   ]);
   const academics = fields.academic ? await studentAcademics(authed, { student: s, access: fields }) : null;
+  const exams =
+    tab === "exams" && fields.academic ? await studentExams(authed, { student: s, access: fields }) : null;
+  const summary = summarizeStudent(s, fields);
 
   return (
     <>
@@ -188,9 +193,97 @@ export default async function Student360Page({ params }: { params: Promise<{ id:
         </dl>
       </section>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <nav aria-label="Student record" className="border-border mb-5 flex gap-1 overflow-x-auto border-b">
+        {TABS.map((x) => (
+          <Link
+            key={x.key}
+            href={`/students/${s.id}${x.key === "overview" ? "" : `?tab=${x.key}`}`}
+            scroll={false}
+            aria-current={tab === x.key ? "page" : undefined}
+            className={cn(
+              "-mb-px shrink-0 border-b-2 px-3 py-2 text-[13px] font-medium transition-colors",
+              tab === x.key
+                ? "border-brand text-foreground"
+                : "text-muted hover:text-foreground border-transparent",
+            )}
+          >
+            {x.label}
+          </Link>
+        ))}
+      </nav>
+
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-5",
+          tab === "overview" && "xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]",
+          tab === "communication" && "xl:grid-cols-2",
+        )}
+      >
         <div className="space-y-5">
-          {fields.risk && s.risk.factors.length > 0 && (
+          {tab === "overview" && (
+            <WidgetCard
+              title="Summary"
+              description="Written from the record by rules, limited to what your role may read"
+            >
+              <ul className="space-y-2">
+                {summary.map((l, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "mt-1.5 size-2 shrink-0 rounded-full",
+                        l.tone === "critical"
+                          ? "bg-danger"
+                          : l.tone === "watch"
+                            ? "bg-warning"
+                            : l.tone === "good"
+                              ? "bg-success"
+                              : "bg-border-strong",
+                      )}
+                    />
+                    <span>{l.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </WidgetCard>
+          )}
+          {tab === "exams" && <ExamsTab exams={exams} />}
+          {tab === "fees" && (
+            <PlannedCard
+              title="Fee ledger and receipts"
+              phase={7}
+              description={
+                fields.finance
+                  ? `Invoices, payments and receipts arrive in Phase 7. The fee status in the header (${s.feeStatus}) is a synthetic signal until then.`
+                  : "Invoices, payments and receipts arrive in Phase 7. Fee details are not visible to your role."
+              }
+            />
+          )}
+          {tab === "placement" && (
+            <PlannedCard
+              title="Placements and internships"
+              phase={8}
+              description="Eligibility, applications, offers and internships."
+            />
+          )}
+          {tab === "mentoring" && (
+            <PlannedCard
+              title="Mentoring and interventions"
+              phase={6}
+              description={`Mentor: ${s.mentorName}. Meetings, agreed actions and interventions arrive in Phase 6.`}
+            />
+          )}
+          {tab === "documents" && (
+            <PlannedCard
+              title="Documents and certificates"
+              phase={7}
+              description="Document vault, verification and certificates."
+            />
+          )}
+          {tab === "attendance" && !showSubjects && (
+            <PlannedState text="Attendance for this student isn't visible to your role." />
+          )}
+          {tab === "overview" && fields.risk && s.risk.factors.length > 0 && (
             <WidgetCard
               title="Why this student is flagged"
               description="Each factor shows the rule it crossed. Risk is never a black box."
@@ -211,7 +304,7 @@ export default async function Student360Page({ params }: { params: Promise<{ id:
             </WidgetCard>
           )}
 
-          {showSubjects && (
+          {tab === "attendance" && showSubjects && (
             <WidgetCard
               title={teaching && !fields.academic ? "Attendance in your course" : "Attendance by subject"}
               description={`Term to date with projection against the ${threshold}% requirement`}
@@ -281,7 +374,7 @@ export default async function Student360Page({ params }: { params: Promise<{ id:
             </WidgetCard>
           )}
 
-          {academics && academics.semesters.length > 0 && (
+          {tab === "academics" && academics && academics.semesters.length > 0 && (
             <WidgetCard
               title="Results by semester"
               description={`CGPA ${academics.standing.cgpa.toFixed(2)} · ${academics.standing.backlogs} backlogs · published results`}
@@ -321,106 +414,97 @@ export default async function Student360Page({ params }: { params: Promise<{ id:
             </WidgetCard>
           )}
 
-          <WidgetCard
-            title="Programme & enrolment"
-            description={`${placement.termName ?? "No current term"} · courses come from the batch's regulation`}
-            flush
-          >
-            <dl className="border-border grid grid-cols-2 gap-x-4 gap-y-3 border-b px-4 py-3 text-sm sm:grid-cols-4">
-              <Fact label="Programme" value={s.programme} hint={placement.programmeCode} />
-              <Fact label="Regulation" value={placement.regulationCode} hint={placement.regulationName} />
-              <Fact label="Batch" value={placement.batchName} hint={placement.batchCode} />
-              <Fact label="Section" value={s.sectionLabel} hint={`Year ${s.year} · Semester ${s.semester}`} />
-            </dl>
-            {placement.courses.length === 0 ? (
-              <p className="text-muted px-4 py-6 text-center text-sm">
-                No offerings for this section in the current term yet.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-border text-2xs text-subtle border-b text-left tracking-wide uppercase">
-                      <th className="px-4 py-2 font-medium">Course this term</th>
-                      <th className="px-3 py-2 text-right font-medium">Credits</th>
-                      <th className="px-4 py-2 font-medium">Taught by</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-border divide-y">
-                    {placement.courses.map((c) => (
-                      <tr key={c.offeringId}>
-                        <td className="px-4 py-2">
-                          <div className="font-medium">{c.name}</div>
-                          <div className="text-2xs text-subtle font-mono">
-                            {c.code}
-                            {c.type !== "theory" && ` · ${c.type}`}
-                          </div>
-                        </td>
-                        <td className="tabular px-3 py-2 text-right">{c.credits}</td>
-                        <td className="px-4 py-2 text-xs">
-                          {c.faculty.length ? (
-                            c.faculty.join(", ")
-                          ) : (
-                            <Badge tone="warning">Unallocated</Badge>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {placement.history.length > 1 && (
-              <div className="border-border border-t px-4 py-3">
-                <p className="text-2xs text-subtle mb-1.5 font-medium tracking-wide uppercase">
-                  Section history
+          {tab === "academics" && (
+            <WidgetCard
+              title="Programme & enrolment"
+              description={`${placement.termName ?? "No current term"} · courses come from the batch's regulation`}
+              flush
+            >
+              <dl className="border-border grid grid-cols-2 gap-x-4 gap-y-3 border-b px-4 py-3 text-sm sm:grid-cols-4">
+                <Fact label="Programme" value={s.programme} hint={placement.programmeCode} />
+                <Fact label="Regulation" value={placement.regulationCode} hint={placement.regulationName} />
+                <Fact label="Batch" value={placement.batchName} hint={placement.batchCode} />
+                <Fact
+                  label="Section"
+                  value={s.sectionLabel}
+                  hint={`Year ${s.year} · Semester ${s.semester}`}
+                />
+              </dl>
+              {placement.courses.length === 0 ? (
+                <p className="text-muted px-4 py-6 text-center text-sm">
+                  No offerings for this section in the current term yet.
                 </p>
-                <ul className="space-y-1 text-xs">
-                  {placement.history.map((h) => (
-                    <li key={h.id} className="flex flex-wrap gap-x-2">
-                      <span className="font-medium">{h.sectionLabel}</span>
-                      <span className="text-muted">
-                        {formatDate(h.startedOn)} – {h.endedOn ? formatDate(h.endedOn) : "now"}
-                      </span>
-                      <span className="text-subtle">· {h.reason}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </WidgetCard>
-
-          <WidgetCard
-            title="More of this record"
-            description="These domains attach to the same student identity as they are delivered."
-          >
-            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {UPCOMING.filter((u) => fields.finance || u.icon !== Wallet).map(
-                ({ icon: Icon, label, phase }) => (
-                  <li
-                    key={label}
-                    className="border-border-strong flex items-center gap-2.5 rounded-md border border-dashed px-3 py-2"
-                  >
-                    <Icon aria-hidden className="text-subtle size-4" />
-                    <span className="text-muted text-sm">{label}</span>
-                    <span className="text-2xs text-subtle ml-auto">Phase {phase}</span>
-                  </li>
-                ),
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-border text-2xs text-subtle border-b text-left tracking-wide uppercase">
+                        <th className="px-4 py-2 font-medium">Course this term</th>
+                        <th className="px-3 py-2 text-right font-medium">Credits</th>
+                        <th className="px-4 py-2 font-medium">Taught by</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-border divide-y">
+                      {placement.courses.map((c) => (
+                        <tr key={c.offeringId}>
+                          <td className="px-4 py-2">
+                            <div className="font-medium">{c.name}</div>
+                            <div className="text-2xs text-subtle font-mono">
+                              {c.code}
+                              {c.type !== "theory" && ` · ${c.type}`}
+                            </div>
+                          </td>
+                          <td className="tabular px-3 py-2 text-right">{c.credits}</td>
+                          <td className="px-4 py-2 text-xs">
+                            {c.faculty.length ? (
+                              c.faculty.join(", ")
+                            ) : (
+                              <Badge tone="warning">Unallocated</Badge>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
-            </ul>
-          </WidgetCard>
+              {placement.history.length > 1 && (
+                <div className="border-border border-t px-4 py-3">
+                  <p className="text-2xs text-subtle mb-1.5 font-medium tracking-wide uppercase">
+                    Section history
+                  </p>
+                  <ul className="space-y-1 text-xs">
+                    {placement.history.map((h) => (
+                      <li key={h.id} className="flex flex-wrap gap-x-2">
+                        <span className="font-medium">{h.sectionLabel}</span>
+                        <span className="text-muted">
+                          {formatDate(h.startedOn)} – {h.endedOn ? formatDate(h.endedOn) : "now"}
+                        </span>
+                        <span className="text-subtle">· {h.reason}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </WidgetCard>
+          )}
         </div>
 
         <div className="space-y-5">
-          <WidgetCard title="Activity timeline" description="Changes, alerts and interactions — newest first">
-            {timeline.length ? (
-              <Timeline events={timeline} now={DEMO_NOW} />
-            ) : (
-              <p className="text-muted text-sm">No activity visible to your role.</p>
-            )}
-          </WidgetCard>
+          {tab === "overview" && (
+            <WidgetCard
+              title="Activity timeline"
+              description="Changes, alerts and interactions — newest first"
+            >
+              {timeline.length ? (
+                <Timeline events={timeline} now={DEMO_NOW} />
+              ) : (
+                <p className="text-muted text-sm">No activity visible to your role.</p>
+              )}
+            </WidgetCard>
+          )}
 
-          {(fields.contact || fields.guardian) && (
+          {tab === "overview" && (fields.contact || fields.guardian) && (
             <WidgetCard title="Contact & guardian">
               <dl className="space-y-3 text-sm">
                 {fields.contact && (
@@ -461,23 +545,28 @@ export default async function Student360Page({ params }: { params: Promise<{ id:
             </WidgetCard>
           )}
 
-          {guardianMessages && (
-            <WidgetCard
-              title="Guardian communication"
-              description="Messages to this student's guardians"
-              action={
-                holdsAnywhere(authed.ctx, "guardian:message") ? (
-                  <DrillLink href={`/parent-communication?student=${s.id}`}>Message</DrillLink>
-                ) : undefined
-              }
-              flush
-            >
-              <GuardianMessageList messages={guardianMessages} />
+          {tab === "communication" &&
+            (guardianMessages ? (
+              <WidgetCard
+                title="Guardian communication"
+                description="Messages to this student's guardians"
+                action={
+                  holdsAnywhere(authed.ctx, "guardian:message") ? (
+                    <DrillLink href={`/parent-communication?student=${s.id}`}>Message</DrillLink>
+                  ) : undefined
+                }
+                flush
+              >
+                <GuardianMessageList messages={guardianMessages} />
+              </WidgetCard>
+            ) : (
+              <PlannedState text="Guardian communication is visible to staff who may read guardian details." />
+            ))}
+          {(tab === "overview" || tab === "communication") && (
+            <WidgetCard title={isSelf ? "Notices for you" : "Notices this student receives"} flush>
+              <NoticeList items={notices} />
             </WidgetCard>
           )}
-          <WidgetCard title={isSelf ? "Notices for you" : "Notices this student receives"} flush>
-            <NoticeList items={notices} />
-          </WidgetCard>
 
           {!isSelf && (
             <p className="text-2xs text-subtle flex items-center gap-1.5 px-1">
@@ -520,5 +609,57 @@ function Fact({ label, value, hint }: { label: string; value: string; hint?: str
       <dd className="truncate font-medium">{value}</dd>
       {hint && <dd className="text-2xs text-subtle truncate">{hint}</dd>}
     </div>
+  );
+}
+
+function PlannedState({ text }: { text: string }) {
+  return (
+    <p className="border-border-strong text-muted rounded-lg border border-dashed px-5 py-8 text-center text-sm">
+      {text}
+    </p>
+  );
+}
+
+function ExamsTab({ exams }: { exams: Awaited<ReturnType<typeof studentExams>> }) {
+  if (!exams) return <PlannedState text="Examination details aren't visible to your role." />;
+  const papers = exams.sittings.flatMap((x) => x.papers.map((p) => ({ ...p, event: x.event })));
+  return (
+    <>
+      <WidgetCard
+        title="Eligibility"
+        description={exams.termName ? `Semester-end examinations, ${exams.termName}` : undefined}
+      >
+        <p className="text-sm">
+          {exams.maySit
+            ? "Eligible to sit the semester-end examinations."
+            : exams.condonation?.status === "pending"
+              ? "Below the attendance requirement — a condonation request is pending."
+              : exams.eligibility === "condonable"
+                ? "Below the attendance requirement — needs an approved condonation to sit."
+                : "Below the condonation band — not eligible to sit as things stand."}
+        </p>
+      </WidgetCard>
+      <WidgetCard title="Registered papers" flush>
+        {papers.length === 0 ? (
+          <p className="text-muted px-4 py-6 text-center text-sm">No registrations.</p>
+        ) : (
+          <ul className="divide-border divide-y text-sm">
+            {papers.map((p) => (
+              <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="min-w-0 flex-1">
+                  <span className="font-medium">
+                    {p.courseCode} {p.courseName}
+                  </span>
+                  <span className="text-subtle block text-xs">{p.event.name}</span>
+                </span>
+                <span className="text-muted text-xs">
+                  {p.slot ? `${formatDate(p.slot.date)} · ${p.slot.session}` : "Not scheduled"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </WidgetCard>
+    </>
   );
 }
