@@ -26,7 +26,10 @@ export type IconName =
   | "list-checks"
   | "folder"
   | "key"
-  | "scroll";
+  | "scroll"
+  | "sparkles"
+  | "megaphone-plus"
+  | "calendar";
 
 export interface ModuleDef {
   key: string;
@@ -58,10 +61,10 @@ const defs = [
   {
     key: "dashboard",
     path: "/dashboard",
-    label: "Dashboard",
+    label: "Home",
     icon: "home",
     phase: 0,
-    description: "Role-specific command center.",
+    description: "Role-specific home: what needs attention, what to do next.",
   },
   {
     key: "students",
@@ -74,10 +77,10 @@ const defs = [
   {
     key: "announcements",
     path: "/announcements",
-    label: "Announcements",
-    icon: "megaphone",
+    label: "Inbox",
+    icon: "inbox",
     phase: 0,
-    description: "Campus Communication & Intelligence Hub.",
+    description: "Campus inbox: notices addressed to you, with read, save and acknowledgement.",
   },
   {
     key: "academics",
@@ -130,7 +133,7 @@ const defs = [
   {
     key: "exams",
     path: "/exams",
-    label: "Exams",
+    label: "Examinations",
     icon: "clipboard",
     phase: 4,
     description: "Assessments, mark entry, moderation, result publishing and revaluation.",
@@ -146,10 +149,42 @@ const defs = [
   {
     key: "parent-communication",
     path: "/parent-communication",
-    label: "Parent Communication",
+    label: "Parent communication",
     icon: "message",
     phase: 5,
     description: "Targeted guardian messages through the notification layer.",
+  },
+  {
+    key: "announcements-manage",
+    path: "/announcements/sent",
+    label: "Announcements",
+    icon: "megaphone",
+    phase: 5,
+    description: "Write, schedule and target notices; see who read and acknowledged them.",
+  },
+  {
+    key: "insights",
+    path: "/insights",
+    label: "Insights",
+    icon: "sparkles",
+    phase: 5,
+    description: "Ask CampusOS: questions about your scope, answered from permission-checked records.",
+  },
+  {
+    key: "my-timetable",
+    path: "/my/timetable",
+    label: "Timetable",
+    icon: "calendar",
+    phase: 5,
+    description: "Your weekly class timetable.",
+  },
+  {
+    key: "assignments",
+    path: "/assignments",
+    label: "Assignments",
+    icon: "file-text",
+    phase: 11,
+    description: "Coursework and submissions through the LMS integration.",
   },
   {
     key: "deliveries",
@@ -171,7 +206,7 @@ const defs = [
   {
     key: "finance",
     path: "/finance",
-    label: "Finance Summary",
+    label: "Finance",
     icon: "wallet",
     phase: 7,
     description: "Fee plans, invoices, dues, concessions and collection health.",
@@ -227,7 +262,7 @@ const defs = [
   {
     key: "compliance",
     path: "/compliance",
-    label: "Compliance",
+    label: "Accreditation",
     icon: "shield-check",
     phase: 9,
     description: "Accreditation evidence workspace with owners and freshness.",
@@ -235,7 +270,7 @@ const defs = [
   {
     key: "my-academics",
     path: "/my/academics",
-    label: "Academics",
+    label: "Results",
     icon: "graduation-cap",
     phase: 4,
     description: "Your registrations, results, grades and credit progress.",
@@ -275,7 +310,7 @@ const defs = [
   {
     key: "my-courses",
     path: "/my/courses",
-    label: "My Courses",
+    label: "My courses",
     icon: "book",
     phase: 2,
     description: "Courses you teach this term, with enrolled students.",

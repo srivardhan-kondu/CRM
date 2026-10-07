@@ -1,7 +1,7 @@
 import { ShieldOff } from "lucide-react";
 import { signOut } from "@/app/actions/session";
 import { EmptyState } from "@/components/patterns/states";
-import { CommandPalette } from "@/components/shell/command-palette";
+import { CommandPalette, type PaletteAction } from "@/components/shell/command-palette";
 import { MobileNav } from "@/components/shell/mobile-nav";
 import { ShellProvider } from "@/components/shell/shell-context";
 import { Sidebar } from "@/components/shell/sidebar";
@@ -20,6 +20,20 @@ import { describeAssignmentScope } from "@/lib/authz/describe";
 import { authorize, holdsAnywhere } from "@/lib/authz/engine";
 import { flattenNav, navigationFor } from "@/lib/navigation/nav";
 import { formatRelative } from "@/lib/utils";
+
+/** Shortcuts offered in the command palette, limited to modules in the viewer's navigation. */
+function paletteActions(keys: string[]): PaletteAction[] {
+  const has = (k: string) => keys.includes(k);
+  return [
+    { label: "Ask CampusOS a question", href: "/insights" },
+    ...(has("announcements-manage") ? [{ label: "New announcement", href: "/announcements/new" }] : []),
+    ...(has("attendance") ? [{ label: "Mark attendance", href: "/attendance" }] : []),
+    ...(has("marks") ? [{ label: "Enter internal marks", href: "/marks" }] : []),
+    ...(has("parent-communication") ? [{ label: "Message guardians", href: "/parent-communication" }] : []),
+    ...(has("approvals") ? [{ label: "Review pending approvals", href: "/approvals" }] : []),
+    ...(has("my-attendance") ? [{ label: "Apply for leave", href: "/my/attendance" }] : []),
+  ];
+}
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const authed = await requireAuth();
@@ -55,11 +69,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     linkedStudentId: linked[0]?.student.id,
     canManageAccess: holdsAnywhere(ctx, "role_assignment:manage") || holdsAnywhere(ctx, "user:manage"),
     canViewAudit: authorize(ctx, tree, "audit:view", { kind: "tenant", tenantId: ctx.tenantId }).allowed,
+    canPublish: holdsAnywhere(ctx, "announcement:publish"),
   });
 
   const now = institutionNow();
   const [today, context, personal, pendingNotices, unreadMessages] = await Promise.all([
-    listInbox(authed, "today"),
+    listInbox(authed, "important"),
     academicContext(ctx),
     myNotifications(ctx.tenantId, ctx.userId),
     pendingForApproval(authed),
@@ -147,6 +162,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <CommandPalette
         nav={flattenNav(groups)}
         canSearchStudents={workspace !== "self" && workspace !== "guardian"}
+        actions={paletteActions(flattenNav(groups).map((i) => i.key))}
       />
     </ShellProvider>
   );
