@@ -115,6 +115,11 @@ export interface NavOptions {
   canViewAudit?: boolean;
   /** Show "Announcements" (writing and sent notices) only to those who may publish. */
   canPublish?: boolean;
+  /**
+   * Include modules from later phases. Off in the app: people only see what they can use today (the planned-module
+   * pages still answer direct links).
+   */
+  showPlanned?: boolean;
 }
 
 export function navigationFor(workspace: WorkspaceKind, opts: NavOptions = {}): NavGroup[] {
@@ -128,6 +133,9 @@ export function navigationFor(workspace: WorkspaceKind, opts: NavOptions = {}): 
     if (opts.canViewAudit) items.push("audit", "deliveries");
     groups.push({ label: "Administration", items });
   }
+  if (!opts.showPlanned)
+    for (const g of groups)
+      g.items = g.items.filter((e) => isAvailable(MODULES[typeof e === "string" ? e : e.module]));
   return groups
     .filter((g) => g.items.length > 0)
     .map((group) => ({

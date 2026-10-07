@@ -1,6 +1,6 @@
 "use client";
 
-import { GraduationCap } from "lucide-react";
+import { GraduationCap } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { NavGroup } from "@/lib/navigation/nav";
@@ -22,11 +22,11 @@ function activeHref(pathname: string, groups: NavGroup[]): string | undefined {
 
 export function Brand() {
   return (
-    <Link href="/dashboard" className="flex items-center gap-2 px-1">
-      <span className="bg-brand text-brand-foreground flex size-7 items-center justify-center rounded-md">
-        <GraduationCap aria-hidden className="size-4" />
+    <Link href="/dashboard" className="flex items-center gap-2.5 px-1">
+      <span className="bg-brand text-brand-foreground flex size-9 items-center justify-center rounded-lg">
+        <GraduationCap aria-hidden weight="fill" className="size-5" />
       </span>
-      <span className="text-[15px] font-semibold tracking-tight">CampusOS</span>
+      <span className="text-lg font-semibold tracking-tight">CampusOS</span>
     </Link>
   );
 }
@@ -43,11 +43,13 @@ export function NavList({
   const pathname = usePathname();
   const current = activeHref(pathname, groups);
   return (
-    <nav aria-label="Primary" className="flex flex-col gap-5">
+    <nav aria-label="Primary" className="flex flex-col gap-6">
       {groups.map((group) => (
         <div key={group.label}>
-          <p className="text-2xs text-subtle mb-1 px-2 font-medium tracking-wide uppercase">{group.label}</p>
-          <ul className="flex flex-col gap-0.5">
+          <p className="text-muted mb-1.5 px-3 text-xs font-semibold tracking-wide uppercase">
+            {group.label}
+          </p>
+          <ul className="flex flex-col gap-1">
             {group.items.map((item) => {
               const Icon = NAV_ICONS[item.icon];
               const active = item.href === current;
@@ -59,29 +61,23 @@ export function NavList({
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "group flex h-8 items-center gap-2.5 rounded-md px-2 text-[13px] transition-colors",
+                      "flex min-h-11 items-center gap-3 rounded-lg px-3 text-[15px] transition-colors",
                       active
-                        ? "bg-surface text-foreground ring-border font-medium shadow-xs ring-1"
-                        : "text-muted hover:bg-surface-muted hover:text-foreground",
+                        ? "bg-brand-soft text-brand-soft-foreground font-semibold"
+                        : "text-foreground hover:bg-surface-muted",
                     )}
                   >
                     <Icon
                       aria-hidden
-                      className={cn(
-                        "size-4 shrink-0",
-                        active ? "text-brand" : "text-subtle group-hover:text-muted",
-                      )}
+                      weight="duotone"
+                      className={cn("size-[22px] shrink-0", active ? "text-brand" : "text-muted")}
                     />
                     <span className="truncate">{item.label}</span>
-                    {!item.available ? (
+                    {badge ? (
                       <span
-                        className="text-2xs text-subtle ml-auto rounded px-1"
-                        title={`Arrives in Phase ${item.phase}`}
+                        className="bg-brand text-brand-foreground tabular ml-auto min-w-6 rounded-full px-2 text-center text-xs leading-6 font-semibold"
+                        aria-label={`${badge} new`}
                       >
-                        P{item.phase}
-                      </span>
-                    ) : badge ? (
-                      <span className="bg-brand text-2xs text-brand-foreground tabular ml-auto rounded-full px-1.5 font-semibold">
                         {badge}
                       </span>
                     ) : null}
@@ -98,16 +94,14 @@ export function NavList({
 
 export function Sidebar({ groups, badges }: { groups: NavGroup[]; badges?: Record<string, number> }) {
   return (
-    <aside className="border-border bg-sidebar sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r lg:flex">
-      <div className="flex h-14 items-center px-4">
+    <aside className="border-border bg-sidebar sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r lg:flex">
+      <div className="flex h-16 items-center px-4">
         <Brand />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-2 pb-4">
         <NavList groups={groups} badges={badges} />
       </div>
-      <div className="border-border text-2xs text-subtle border-t px-4 py-3">
-        Synthetic demo data · no real people
-      </div>
+      <div className="border-border text-muted border-t px-4 py-3 text-xs">Demo with made-up data</div>
     </aside>
   );
 }

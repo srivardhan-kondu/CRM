@@ -64,13 +64,13 @@ export function AskCampusOS({
       >
         <Sparkles aria-hidden className="text-brand size-4 shrink-0" />
         <label htmlFor="ask-campusos" className="sr-only">
-          Ask CampusOS
+          Your question
         </label>
         <input
           id="ask-campusos"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Ask about students, attendance, exams, approvals…"
+          placeholder="Type a question, for example: which students need help?"
           maxLength={200}
           autoFocus={autoFocus}
           className="placeholder:text-subtle h-11 w-full bg-transparent text-sm outline-none"

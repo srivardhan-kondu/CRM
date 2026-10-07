@@ -109,7 +109,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           ...(approvals ?? []).map((a) => ({
             id: a.id,
             title: a.title,
-            meta: `${a.requester} · ${a.overdue ? "SLA breached" : `due ${formatRelative(a.dueAt, now)}`}`,
+            meta: `${a.requester} · ${a.overdue ? "Overdue" : `due ${formatRelative(a.dueAt, now)}`}`,
             overdue: a.overdue,
           })),
         ]

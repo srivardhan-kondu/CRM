@@ -165,7 +165,7 @@ const defs = [
   {
     key: "insights",
     path: "/insights",
-    label: "Insights",
+    label: "Ask a question",
     icon: "sparkles",
     phase: 5,
     description: "Ask CampusOS: questions about your scope, answered from permission-checked records.",
