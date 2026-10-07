@@ -1,12 +1,25 @@
 "use client";
 
 import { Command } from "cmdk";
-import { CornerDownLeft, Loader2, LogOut, Search, UserRound, UserRoundCog } from "lucide-react";
+import {
+  BookOpen,
+  Building2,
+  CornerDownLeft,
+  GraduationCap,
+  Loader2,
+  LogOut,
+  Megaphone,
+  Search,
+  Sparkles,
+  UserRound,
+  UserRoundCog,
+  Zap,
+} from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { signOut } from "@/app/actions/session";
-import type { SearchResult } from "@/app/api/search/route";
+import type { SearchHit, SearchResponse } from "@/app/api/search/route";
 import { Kbd } from "@/components/ui/misc";
 import type { NavItem } from "@/lib/navigation/nav";
 import { NAV_ICONS } from "./icons";
@@ -38,16 +51,38 @@ function Item({
 const groupClass =
   "px-1 py-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-subtle [&_[cmdk-group-heading]]:uppercase";
 
-export function CommandPalette({ nav, canSearchStudents }: { nav: NavItem[]; canSearchStudents: boolean }) {
+export interface PaletteAction {
+  label: string;
+  href: string;
+}
+
+const EMPTY: SearchResponse = {
+  students: [],
+  faculty: [],
+  courses: [],
+  notices: [],
+  units: [],
+  question: null,
+};
+
+export function CommandPalette({
+  nav,
+  canSearchStudents,
+  actions,
+}: {
+  nav: NavItem[];
+  canSearchStudents: boolean;
+  actions: PaletteAction[];
+}) {
   const { paletteOpen, setPaletteOpen } = useShell();
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [students, setStudents] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<SearchResponse>(EMPTY);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const q = query.trim();
-    if (!paletteOpen || !canSearchStudents || q.length < 2) {
+    if (!paletteOpen || q.length < 2) {
       return;
     }
     const controller = new AbortController();
@@ -55,7 +90,7 @@ export function CommandPalette({ nav, canSearchStudents }: { nav: NavItem[]; can
       setLoading(true);
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal: controller.signal });
-        if (res.ok) setStudents(((await res.json()) as { students: SearchResult[] }).students);
+        if (res.ok) setResults((await res.json()) as SearchResponse);
       } catch {
         /* aborted or offline — keep previous results */
       } finally {
@@ -66,7 +101,7 @@ export function CommandPalette({ nav, canSearchStudents }: { nav: NavItem[]; can
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, paletteOpen, canSearchStudents]);
+  }, [query, paletteOpen]);
 
   const go = (href: string) => {
     setPaletteOpen(false);
@@ -77,11 +112,23 @@ export function CommandPalette({ nav, canSearchStudents }: { nav: NavItem[]; can
     setPaletteOpen(open);
     if (!open) {
       setQuery("");
-      setStudents([]);
+      setResults(EMPTY);
     }
   };
 
-  const showStudents = canSearchStudents && query.trim().length >= 2;
+  const searching = query.trim().length >= 2;
+  const hits = (heading: string, list: SearchHit[], Icon: typeof UserRound) =>
+    searching && list.length > 0 ? (
+      <Command.Group heading={heading} className={groupClass}>
+        {list.map((h) => (
+          <Item key={h.id} value={`${heading} ${h.label} ${h.sublabel} ${query}`} onSelect={() => go(h.href)}>
+            <Icon />
+            <span className="truncate">{h.label}</span>
+            <span className="text-2xs text-subtle ml-auto max-w-[45%] truncate">{h.sublabel}</span>
+          </Item>
+        ))}
+      </Command.Group>
+    ) : null;
 
   return (
     <DialogPrimitive.Root open={paletteOpen} onOpenChange={onOpenChange}>
@@ -104,8 +151,8 @@ export function CommandPalette({ nav, canSearchStudents }: { nav: NavItem[]; can
                 onValueChange={setQuery}
                 placeholder={
                   canSearchStudents
-                    ? "Search students by name or ID, or jump to a page…"
-                    : "Jump to a page or run an action…"
+                    ? "Search students, faculty, courses, notices — or ask a question…"
+                    : "Search notices, jump to a page, or ask a question…"
                 }
                 className="placeholder:text-subtle h-12 w-full bg-transparent text-sm outline-none"
               />
@@ -116,9 +163,19 @@ export function CommandPalette({ nav, canSearchStudents }: { nav: NavItem[]; can
                 {loading ? "Searching…" : "No matches in your scope."}
               </Command.Empty>
 
-              {showStudents && students.length > 0 && (
+              {searching && results.question && (
+                <Command.Group heading="Ask CampusOS" className={groupClass}>
+                  <Item value={`ask ${query}`} onSelect={() => go(results.question!.href)}>
+                    <Sparkles />
+                    <span className="truncate">“{results.question.text}”</span>
+                    <span className="text-2xs text-subtle ml-auto">Answer from your records</span>
+                  </Item>
+                </Command.Group>
+              )}
+
+              {searching && results.students.length > 0 && (
                 <Command.Group heading="Students" className={groupClass}>
-                  {students.map((s) => (
+                  {results.students.map((s) => (
                     <Item
                       key={s.id}
                       value={`student ${s.name} ${s.studentNumber} ${s.sectionLabel} ${query}`}
@@ -129,6 +186,21 @@ export function CommandPalette({ nav, canSearchStudents }: { nav: NavItem[]; can
                       <span className="text-2xs text-subtle ml-auto font-mono">
                         {s.studentNumber} · {s.sectionLabel}
                       </span>
+                    </Item>
+                  ))}
+                </Command.Group>
+              )}
+              {hits("Faculty", results.faculty, GraduationCap)}
+              {hits("Courses", results.courses, BookOpen)}
+              {hits("Announcements", results.notices, Megaphone)}
+              {hits("Departments & sections", results.units, Building2)}
+
+              {actions.length > 0 && (
+                <Command.Group heading="Actions" className={groupClass}>
+                  {actions.map((a) => (
+                    <Item key={a.href} value={`action ${a.label}`} onSelect={() => go(a.href)}>
+                      <Zap />
+                      {a.label}
                     </Item>
                   ))}
                 </Command.Group>
