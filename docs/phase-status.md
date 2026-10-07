@@ -15,6 +15,17 @@
 | 10    | AI copilot & intelligence layer                | Planned                                                |
 | 11    | Integrations, hardening & production readiness | Planned                                                |
 
+## Interface redesign (2026-10-07)
+
+The UI now follows the attention model and visual system in ui-system.md (ADR-025): new palette and Inter, light by
+default; role home pages (principal, director, HOD, class incharge, faculty, student, guardian, exam cell) that lead
+with health and what needs attention; global navigation names by role; search across students, faculty, courses,
+notices and units with natural-language questions; **Ask CampusOS** (rule-based, permission-safe); a Campus Inbox with
+All / Important / Exams / Placements / Academic / Administrative / Saved / History; scheduled publishing and campus and
+staff-role targeting (migration 0013); Student 360 in tabs with a rule-based record summary; a weekly timetable for
+students and guardians; loading states throughout. Tests: 162 unit, 45 integration, E2E `redesign.spec.ts` (9 flows)
+plus the earlier phases.
+
 ## Phase 5 — Campus Communication & Intelligence Hub
 
 Policy chosen by Claude with the owner's standing go-ahead for the demo (ADR-023): in-app delivery for everyone and

@@ -230,3 +230,23 @@ assignments (including teaching allocations) that are expensive to enumerate. Gu
 trigger: a correction is a withdrawal plus a new notice, so what an approver approved is exactly what recipients got.
 Attachments are stored in the row (≤ 2 MB, type verified by content) and served only by a route that re-checks
 visibility, so there is no URL to leak; object storage can replace the column without changing the route.
+
+## ADR-025 — Redesign around an attention model; a rule-based assistant (2026-10-07)
+
+The owner asked for the interface to feel like a university operating system rather than an ERP: one purpose per
+page, actionable insight over raw numbers, and a principal able to read campus health in ten seconds. Home pages now
+share one structure (ui-system.md) built on a pure attention model (`domains/insights/attention.ts`): items ranked
+critical → action → important → information, a health verdict judged against stated thresholds, and every item
+carrying the rule and figures behind it. Weekly attendance trends sum a per-section, per-week table cached for ten
+minutes, so the expensive aggregation (ADR-019) runs once per tenant rather than per request.
+
+"Ask CampusOS" is rule-based by the owner's choice: questions are matched to intents (`domains/assistant/intents.ts`)
+and answered by the same repositories the pages use, so an answer can never show more than the linked page would.
+Each answer returns the sentence, supporting records, a recommended action, sources and its scope. No data leaves
+the application and there is no per-use cost. A language model can be added later behind the same interface and the
+same permission checks (Phase 10).
+
+Modules from later phases (placements, fees, assignments, documents, mentoring) appear only as labelled placeholders
+— the owner's choice — so no dashboard shows invented figures. Notices gained scheduled publishing (the schedule is
+frozen with the content and honoured by `announcement_transition`) and two targets: a campus (its departments
+resolved when written) and staff holding a role within a unit.
