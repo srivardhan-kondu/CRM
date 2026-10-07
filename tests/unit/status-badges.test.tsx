@@ -14,7 +14,7 @@ describe("status badges", () => {
         <SeverityBadge severity="critical" />
       </>,
     );
-    for (const text of ["High risk", "Watch", "On track", "Overdue", "Critical"]) {
+    for (const text of ["High risk", "Watch", "On track", "Overdue", "Urgent"]) {
       expect(screen.getByText(text)).toBeInTheDocument();
     }
   });

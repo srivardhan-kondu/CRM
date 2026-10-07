@@ -9,14 +9,15 @@ test("unauthenticated users are sent to sign in", async ({ page }) => {
 
 test("principal → institution dashboard with drill-down to the shortage list", async ({ page }) => {
   await signInAs(page, /Meera Raghavan/);
-  await expect(page.getByRole("heading", { name: /Good morning, Meera/ })).toBeVisible();
+  // The first page of a freshly started server can take a few seconds while it warms up.
+  await expect(page.getByRole("heading", { name: /Good morning, Meera/ })).toBeVisible({ timeout: 15_000 });
   await openNav(page);
-  await expect(primaryNav(page).getByRole("link", { name: /Analytics/ })).toBeVisible();
+  await expect(primaryNav(page).getByRole("link", { name: /Ask a question/ })).toBeVisible();
   await page.keyboard.press("Escape");
 
-  // The campus pulse comes first; the shortage list is one click away.
-  await expect(page.getByRole("heading", { name: /Campus health/ })).toBeVisible();
-  await page.getByRole("link", { name: /Students below threshold/ }).click();
+  // The to-do list comes first; the students who can't sit exams are one click away.
+  await expect(page.getByRole("heading", { name: "Your to-do list" })).toBeVisible();
+  await page.getByRole("link", { name: "See students" }).first().click();
   await expect(page).toHaveURL(/shortage=1/);
   await expect(page.getByRole("tab", { name: "Attendance shortage", selected: true })).toBeVisible();
 });
@@ -33,7 +34,9 @@ test("roles render different navigation", async ({ page }) => {
   const incharge = await navFor(/Kavya Nair/);
   const student = await navFor(/Student · /);
 
-  expect(principal).toEqual(expect.arrayContaining(["Analytics", "Users & access", "Audit log"]));
+  expect(principal).toEqual(expect.arrayContaining(["Ask a question", "Users & access", "Audit log"]));
+  // Modules from later phases are not shown in the menu.
+  expect(principal).not.toContain("Analytics");
   expect(incharge).toEqual(expect.arrayContaining(["Home", "Parent communication"]));
   expect(incharge).not.toContain("Analytics");
   expect(student).toEqual(expect.arrayContaining(["My profile", "Timetable"]));

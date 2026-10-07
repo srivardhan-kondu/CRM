@@ -34,12 +34,12 @@ describe("role-based navigation", () => {
   });
 
   it("uses the global navigation names, per role", () => {
-    expect(labels("leadership", { canPublish: true })).toEqual(
+    expect(labels("leadership", { canPublish: true, showPlanned: true })).toEqual(
       expect.arrayContaining([
         "Home",
         "Inbox",
         "Approvals",
-        "Insights",
+        "Ask a question",
         "Students",
         "Faculty",
         "Academics",
@@ -56,13 +56,13 @@ describe("role-based navigation", () => {
     expect(labels("department")).toEqual(
       expect.arrayContaining(["Home", "Inbox", "Students", "Courses", "Faculty", "Approvals", "Marks"]),
     );
-    expect(labels("class")).toEqual(
+    expect(labels("class", { showPlanned: true })).toEqual(
       expect.arrayContaining(["Home", "Attendance", "Marks", "Parent communication", "Mentoring", "Tasks"]),
     );
-    expect(labels("teaching")).toEqual(
+    expect(labels("teaching", { showPlanned: true })).toEqual(
       expect.arrayContaining(["Home", "My courses", "Attendance", "Tasks", "Assignments"]),
     );
-    expect(labels("self")).toEqual(
+    expect(labels("self", { showPlanned: true })).toEqual(
       expect.arrayContaining([
         "Home",
         "Inbox",
@@ -77,6 +77,13 @@ describe("role-based navigation", () => {
       ]),
     );
     expect(labels("guardian")).toEqual(expect.arrayContaining(["Home", "Inbox", "Messages", "Timetable"]));
+  });
+
+  it("hides modules from later phases unless asked, so people only see what they can use", () => {
+    for (const w of ALL)
+      expect(flattenNav(navigationFor(w, { canPublish: true })).every((i) => i.available)).toBe(true);
+    expect(labels("self")).not.toContain("Fees");
+    expect(labels("self", { showPlanned: true })).toContain("Fees");
   });
 
   it("shows Announcements (writing notices) only to those who may publish", () => {
@@ -119,7 +126,7 @@ describe("role-based navigation", () => {
   });
 
   it("marks only Phase 0–5 modules as available", () => {
-    const available = flattenNav(navigationFor("admin", { canPublish: true }))
+    const available = flattenNav(navigationFor("admin", { canPublish: true, showPlanned: true }))
       .filter((i) => i.available)
       .map((i) => i.key);
     expect(available.sort()).toEqual([
@@ -143,6 +150,9 @@ describe("role-based navigation", () => {
     expect(flattenNav(navigationFor("teaching")).find((i) => i.key === "attendance")?.available).toBe(true);
     expect(flattenNav(navigationFor("teaching")).find((i) => i.key === "marks")?.available).toBe(true);
     expect(flattenNav(navigationFor("leadership")).find((i) => i.key === "exams")?.available).toBe(true);
-    expect(flattenNav(navigationFor("leadership")).find((i) => i.key === "mentoring")?.available).toBe(false);
+    expect(
+      flattenNav(navigationFor("leadership", { showPlanned: true })).find((i) => i.key === "mentoring")
+        ?.available,
+    ).toBe(false);
   });
 });

@@ -19,11 +19,11 @@ test("the class incharge marks today's class as a substitute; the timetable show
 }) => {
   await signInAs(page, /Kavya Nair/);
   const cs301 = item(page, "Database Management Systems").filter({
-    has: page.getByRole("link", { name: "Mark attendance" }),
+    has: page.getByRole("link", { name: "Take attendance" }),
   });
   // CS302 at 10:00 has not started, so it offers no marking.
-  await expect(item(page, "Operating Systems").getByRole("link", { name: "Mark attendance" })).toHaveCount(0);
-  await cs301.getByRole("link", { name: "Mark attendance" }).click();
+  await expect(item(page, "Operating Systems").getByRole("link", { name: "Take attendance" })).toHaveCount(0);
+  await cs301.getByRole("link", { name: "Take attendance" }).click();
   await page.waitForURL(/\/attendance\/mark\//);
   markUrl = page.url();
   await expect(page.getByText(/Marking is open until midnight today/)).toBeVisible();
@@ -63,10 +63,10 @@ test("changes after the day go to the HOD, who approves them", async ({ browser 
   const hod = await browser.newPage();
   await signInAs(hod, /Arvind Kulkarni/);
   await hod.goto("/approvals");
-  // Rahul Verma's seeded correction is past its 48-hour SLA.
+  // Rahul Verma's seeded correction is past its 48-hour limit: shown as overdue.
   await expect(
     item(hod, "3-CSE-B, CS301")
-      .getByText(/SLA breached/)
+      .getByText(/Overdue/)
       .first(),
   ).toBeVisible();
   const mine = item(hod, "3-CSE-A, CS302").filter({ has: hod.getByRole("button", { name: /^Approve/ }) });

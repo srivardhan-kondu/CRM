@@ -8,37 +8,41 @@ import { signInAs } from "./helpers";
 
 test("the principal sees campus health and what needs attention first", async ({ page }) => {
   await signInAs(page, /Meera Raghavan/);
-  await expect(page.getByRole("heading", { name: /Campus health/ })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Needs attention", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "How things are" })).toContainText(/campus/i);
+  await expect(page.getByRole("heading", { name: "Your to-do list" })).toBeVisible();
+  // Charts stay out of the way until asked for.
+  await expect(page.getByRole("heading", { name: "Attendance, week by week" })).toBeHidden();
+  await page.getByText("Show more details").click();
   await expect(page.getByRole("heading", { name: "Attendance, week by week" })).toBeVisible();
-  await expect(page.getByText("Phase 8").first()).toBeVisible();
   await page.getByLabel("Dashboard scope").selectOption({ label: "Computer Science & Engineering" });
   await expect(page).toHaveURL(/scope=CSE/);
-  await expect(page.getByRole("heading", { name: /Department health/ })).toBeVisible();
+  await expect(page.getByRole("region", { name: "How things are" })).toContainText(
+    "Computer Science & Engineering",
+  );
 });
 
 test("each role lands on a home built for it", async ({ page, browser }) => {
   await signInAs(page, /Kavya Nair/);
-  await expect(page.getByRole("heading", { name: /Class health/ })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Today's timetable" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "How things are" })).toContainText("3-CSE-A");
+  await expect(page.getByRole("heading", { name: /Today's classes/ })).toBeVisible();
 
   const student = await browser.newPage();
   await signInAs(student, /Student · /);
-  await expect(student.getByRole("heading", { name: "My day" })).toBeVisible();
-  await expect(student.getByRole("heading", { name: "Upcoming exams" })).toBeVisible();
+  await expect(student.getByRole("heading", { name: "My classes today" })).toBeVisible();
+  await expect(student.getByRole("region", { name: "At a glance" })).toContainText("Next exam");
   await student.close();
 });
 
 test("Ask CampusOS answers from the asker's own scope, with records and sources", async ({ page }) => {
   await signInAs(page, /Kavya Nair/);
   await page.goto("/insights");
-  await page.getByLabel("Ask CampusOS").fill("students below 80% attendance");
+  await page.getByLabel("Your question").fill("students below 80% attendance");
   await page.keyboard.press("Enter");
   await expect(page.getByText(/students? of 14 in your scope/)).toBeVisible();
   await expect(page.getByText("Supporting records")).toBeVisible();
   await expect(page.getByRole("link", { name: /Source: Students below threshold/ })).toBeVisible();
 
-  await page.getByLabel("Ask CampusOS").fill("what is the weather");
+  await page.getByLabel("Your question").fill("what is the weather");
   await page.keyboard.press("Enter");
   await expect(page.getByText(/I answer questions about students/)).toBeVisible();
 });

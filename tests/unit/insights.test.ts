@@ -67,14 +67,14 @@ describe("attention model", () => {
   it("reports good health when every vital is within its threshold", () => {
     const p = campusPulse(base);
     expect(p.status).toBe("good");
-    expect(p.headline).toBe("The campus is in good health.");
+    expect(p.headline).toBe("Everything looks fine across the campus.");
   });
 
   it("is critical when approvals pass the SLA or >2% of students are ineligible, and says why", () => {
     expect(campusPulse({ ...base, approvalsOverdue: 1 }).status).toBe("critical");
     const p = campusPulse({ ...base, notEligible: 12 });
     expect(p.status).toBe("critical");
-    expect(p.headline).toMatch(/needs attention: .*12 past the condonation band/);
+    expect(p.headline).toMatch(/needs your attention: 12 students are too far below/);
   });
 
   it("watches attendance within 5 points of the requirement", () => {

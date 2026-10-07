@@ -14,6 +14,6 @@ export function primaryNav(page: Page) {
 
 /** On mobile the navigation lives in a drawer. */
 export async function openNav(page: Page) {
-  const toggle = page.getByRole("button", { name: "Open navigation" });
+  const toggle = page.getByRole("button", { name: "Open menu" });
   if (await toggle.isVisible()) await toggle.click();
 }
