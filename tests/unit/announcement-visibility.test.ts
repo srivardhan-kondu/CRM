@@ -110,6 +110,34 @@ describe("announcement targeting", () => {
     expect(isVisibleTo(finalYear, hodCse)).toBe(true);
   });
 
+  it("targets a campus through its departments", () => {
+    const tech: AudienceRule = {
+      kind: "campus",
+      campusCode: "TECH",
+      departmentCodes: ["CSE", "ECE"],
+      audience: "students",
+    };
+    expect(isVisibleTo(tech, studentOf("CSE-3-A"))).toBe(true);
+    expect(isVisibleTo(tech, studentOf("MBA-2-A"))).toBe(false);
+    expect(isVisibleTo(tech, hodCse)).toBe(true);
+    expect(isVisibleTo(tech, staff("MBA"))).toBe(false);
+  });
+
+  it("addresses a role notice only to staff holding that role in scope", () => {
+    const toIncharges: AudienceRule = { kind: "role", roleKey: "class_incharge", unitCode: "CSE" };
+    const asRole = (roleKey: string, code: string): Viewer => ({
+      ...staff(code),
+      staffRoles: [{ roleKey, unit: demoTree.byCode.get(code)! }],
+    });
+    expect(isAddressedTo(toIncharges, asRole("class_incharge", "CSE-3-A"))).toBe(true);
+    expect(isAddressedTo(toIncharges, asRole("faculty", "CSE-3-A"))).toBe(false);
+    expect(isAddressedTo(toIncharges, asRole("class_incharge", "ECE-2-A"))).toBe(false);
+    // The HOD sees it in scope (oversight) but isn't a recipient; students never see staff notices.
+    expect(isVisibleTo(toIncharges, asRole("hod", "CSE"))).toBe(true);
+    expect(isAddressedTo(toIncharges, asRole("hod", "CSE"))).toBe(false);
+    expect(isVisibleTo(toIncharges, studentOf("CSE-3-A"))).toBe(false);
+  });
+
   it("denies a viewer with no units and no linked students", () => {
     expect(
       isVisibleTo(
@@ -144,29 +172,29 @@ describe("inbox views", () => {
   it("moves expired notices to history only", () => {
     const old = item("an-orientation");
     expect(inView(old, "history", DEMO_NOW)).toBe(true);
-    expect(inView(old, "mine", DEMO_NOW)).toBe(false);
-    expect(inView(old, "today", DEMO_NOW)).toBe(false);
+    expect(inView(old, "all", DEMO_NOW)).toBe(false);
+    expect(inView(old, "important", DEMO_NOW)).toBe(false);
   });
 
   it("puts critical active notices in Today", () => {
-    expect(inView(item("an-rain-advisory"), "today", DEMO_NOW)).toBe(true);
+    expect(inView(item("an-rain-advisory"), "important", DEMO_NOW)).toBe(true);
   });
 
   it("keeps unacknowledged notices in Today until acknowledged", () => {
     const attendanceWindow = item("an-attendance-window");
-    expect(inView(attendanceWindow, "today", DEMO_NOW)).toBe(true);
-    expect(inView({ ...attendanceWindow, acknowledged: true }, "today", DEMO_NOW)).toBe(false);
+    expect(inView(attendanceWindow, "important", DEMO_NOW)).toBe(true);
+    expect(inView({ ...attendanceWindow, acknowledged: true }, "important", DEMO_NOW)).toBe(false);
   });
 
   it("leaves notices seen only through oversight out of Today", () => {
-    expect(inView(item("an-rain-advisory", { addressed: false }), "today", DEMO_NOW)).toBe(false);
-    expect(inView(item("an-rain-advisory", { addressed: false }), "mine", DEMO_NOW)).toBe(true);
+    expect(inView(item("an-rain-advisory", { addressed: false }), "important", DEMO_NOW)).toBe(false);
+    expect(inView(item("an-rain-advisory", { addressed: false }), "all", DEMO_NOW)).toBe(true);
   });
 
   it("routes exam and job categories to their views, and saved notices to Saved", () => {
     expect(inView(item("an-see-nov"), "exams", DEMO_NOW)).toBe(true);
-    expect(inView(item("an-see-nov"), "jobs", DEMO_NOW)).toBe(false);
-    expect(inView(item("an-internship-contoso"), "jobs", DEMO_NOW)).toBe(true);
+    expect(inView(item("an-see-nov"), "placements", DEMO_NOW)).toBe(false);
+    expect(inView(item("an-internship-contoso"), "placements", DEMO_NOW)).toBe(true);
     expect(inView(item("an-library"), "saved", DEMO_NOW)).toBe(false);
     expect(inView(item("an-library", { saved: true }), "saved", DEMO_NOW)).toBe(true);
   });

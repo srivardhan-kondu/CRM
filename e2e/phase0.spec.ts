@@ -14,7 +14,9 @@ test("principal → institution dashboard with drill-down to the shortage list",
   await expect(primaryNav(page).getByRole("link", { name: /Analytics/ })).toBeVisible();
   await page.keyboard.press("Escape");
 
-  await page.getByRole("link", { name: /Average attendance/ }).click();
+  // The campus pulse comes first; the shortage list is one click away.
+  await expect(page.getByRole("heading", { name: /Campus health/ })).toBeVisible();
+  await page.getByRole("link", { name: /Students below threshold/ }).click();
   await expect(page).toHaveURL(/shortage=1/);
   await expect(page.getByRole("tab", { name: "Attendance shortage", selected: true })).toBeVisible();
 });
@@ -32,9 +34,9 @@ test("roles render different navigation", async ({ page }) => {
   const student = await navFor(/Student · /);
 
   expect(principal).toEqual(expect.arrayContaining(["Analytics", "Users & access", "Audit log"]));
-  expect(incharge).toContain("My Class");
+  expect(incharge).toEqual(expect.arrayContaining(["Home", "Parent communication"]));
   expect(incharge).not.toContain("Analytics");
-  expect(student).toContain("My Profile");
+  expect(student).toEqual(expect.arrayContaining(["My profile", "Timetable"]));
   expect(student).not.toContain("Students");
 });
 
@@ -48,9 +50,14 @@ test("HOD → find a department student → Student 360", async ({ page }) => {
   await expect(drawer).toBeVisible();
   await drawer.getByRole("link", { name: /Open Student 360/ }).click();
   await expect(page.getByRole("heading", { name: "Student 360" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Summary" })).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Student record" })
+    .getByRole("link", { name: "Attendance" })
+    .click();
   await expect(page.getByText("Attendance by subject")).toBeVisible();
-  // HOD has no finance permission: fee data must not render.
-  await expect(page.getByText("Fees", { exact: true })).toHaveCount(0);
+  // HOD has no finance permission: no fee figure in the record header.
+  await expect(page.getByRole("term").filter({ hasText: /^Fees$/ })).toHaveCount(0);
 });
 
 test("class incharge cannot open a student from another section by URL", async ({ page, browser }) => {
@@ -68,7 +75,7 @@ test("class incharge cannot open a student from another section by URL", async (
 
 test("student sees only their own notices and profile", async ({ page }) => {
   await signInAs(page, /Student · /);
-  await page.goto("/announcements?view=mine");
+  await page.goto("/announcements?view=all");
   await expect(page.getByText(/heavy rainfall advisory/).first()).toBeVisible();
   await expect(page.getByText("ECE Internal Assessment II")).toHaveCount(0);
   await expect(page.getByText(/Faculty: daily attendance/)).toHaveCount(0);

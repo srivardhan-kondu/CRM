@@ -108,8 +108,9 @@ test("principal moves a student between sections with the reason kept on the rec
   await page.getByLabel("Reason").fill("Elective group rebalancing");
   await page.getByRole("button", { name: "Move student" }).click();
   await expect(page.getByText(/moved to section 2-CSE-B/)).toBeVisible();
-  await expect(page.getByText("Section history")).toBeVisible();
   await expect(page.getByText("Moved to section 2-CSE-B", { exact: true })).toBeVisible();
+  await page.goto(`/students/${students[0]!.id}?tab=academics`);
+  await expect(page.getByText("Section history")).toBeVisible();
 
   await page.goto("/admin/audit");
   for (const action of ["student.transfer", "teaching.allocate", "teaching.remove"]) {
@@ -120,6 +121,8 @@ test("principal moves a student between sections with the reason kept on the rec
 test("Student 360 shows the student's regulation and this term's teachers", async ({ page }) => {
   await signInAs(page, /Student · /);
   await page.goto("/students");
+  await page.waitForURL(/\/students\/[0-9a-f-]{36}$/);
+  await page.goto(`${page.url()}?tab=academics`);
   await expect(page.getByRole("heading", { name: "Programme & enrolment" })).toBeVisible();
   await expect(page.getByText("R24", { exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Mr. Rahul Verma" })).toBeVisible();

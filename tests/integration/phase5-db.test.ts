@@ -137,6 +137,26 @@ describe("announcement workflow in the database", () => {
     expect((await loadAnnouncement(db, demo, id))!.summary).toBe("Revised summary");
   });
 
+  it("publishes a scheduled notice at its scheduled time and freezes the schedule", async () => {
+    const id = await noticeId("an-lab-records");
+    const kavya = await userId("class_incharge");
+    const at = new Date("2026-10-08T08:00:00+05:30");
+    await withTenant(db, demo, (q) => [
+      q.update(s.announcement).set({ scheduledFor: at }).where(eq(s.announcement.id, id)),
+    ]);
+    await transition(id, "published", kavya);
+    const a = await loadAnnouncement(db, demo, id);
+    expect(a!.status).toBe("published");
+    expect(a!.publishedAt).toBe(at.toISOString());
+    expect(
+      await failure(
+        withTenant(db, demo, (q) => [
+          q.update(s.announcement).set({ scheduledFor: null }).where(eq(s.announcement.id, id)),
+        ]),
+      ),
+    ).toBe("55000");
+  });
+
   it("withdraws a published notice once", async () => {
     const id = await noticeId("an-library");
     const principal = await userId("principal");

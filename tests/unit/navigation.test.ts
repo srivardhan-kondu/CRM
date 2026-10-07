@@ -33,34 +33,56 @@ describe("role-based navigation", () => {
     for (const r of ROLE_DEFINITIONS) expect(ALL).toContain(r.workspace);
   });
 
-  it("matches the PRD §30.4 module lists", () => {
-    expect(labels("leadership")).toEqual(
+  it("uses the global navigation names, per role", () => {
+    expect(labels("leadership", { canPublish: true })).toEqual(
       expect.arrayContaining([
-        "Dashboard",
+        "Home",
+        "Inbox",
+        "Approvals",
+        "Insights",
         "Students",
+        "Faculty",
         "Academics",
         "Attendance",
-        "Exams",
-        "Mentoring",
-        "Finance Summary",
-        "Placements",
+        "Examinations",
         "Announcements",
-        "Analytics",
-        "Compliance",
-        "Approvals",
+        "Placements",
+        "Finance",
+        "Mentoring",
+        "Accreditation",
         "Reports",
       ]),
     );
     expect(labels("department")).toEqual(
-      expect.arrayContaining(["Department Students", "Courses", "Faculty", "Approvals"]),
+      expect.arrayContaining(["Home", "Inbox", "Students", "Courses", "Faculty", "Approvals", "Marks"]),
     );
     expect(labels("class")).toEqual(
-      expect.arrayContaining(["My Class", "Marks", "Parent Communication", "Requests"]),
+      expect.arrayContaining(["Home", "Attendance", "Marks", "Parent communication", "Mentoring", "Tasks"]),
     );
-    expect(labels("teaching")).toEqual(expect.arrayContaining(["My Courses", "My Classes", "Tasks"]));
+    expect(labels("teaching")).toEqual(
+      expect.arrayContaining(["Home", "My courses", "Attendance", "Tasks", "Assignments"]),
+    );
     expect(labels("self")).toEqual(
-      expect.arrayContaining(["Home", "My Profile", "Fees", "Documents", "Mentor"]),
+      expect.arrayContaining([
+        "Home",
+        "Inbox",
+        "Timetable",
+        "Attendance",
+        "Exams",
+        "Results",
+        "Assignments",
+        "Fees",
+        "Placements",
+        "My profile",
+      ]),
     );
+    expect(labels("guardian")).toEqual(expect.arrayContaining(["Home", "Inbox", "Messages", "Timetable"]));
+  });
+
+  it("shows Announcements (writing notices) only to those who may publish", () => {
+    expect(labels("teaching")).not.toContain("Announcements");
+    expect(labels("teaching", { canPublish: true })).toContain("Announcements");
+    expect(labels("self", { canPublish: true })).not.toContain("Announcements");
   });
 
   it("shows Administration to permission holders outside the admin workspace, and only then", () => {
@@ -74,14 +96,14 @@ describe("role-based navigation", () => {
   it("does not expose institution analytics or finance to class, teaching or self workspaces", () => {
     for (const w of ["class", "teaching", "self", "guardian"] as const) {
       expect(labels(w)).not.toContain("Analytics");
-      expect(labels(w)).not.toContain("Finance Summary");
+      expect(labels(w)).not.toContain("Finance");
       expect(workspaceHasModule(w, "analytics")).toBe(false);
     }
   });
 
   it("points My Profile at the linked Student 360", () => {
     const item = flattenNav(navigationFor("self", { linkedStudentId: "abc" })).find(
-      (i) => i.label === "My Profile",
+      (i) => i.label === "My profile",
     );
     expect(item?.href).toBe("/students/abc");
   });
@@ -97,18 +119,20 @@ describe("role-based navigation", () => {
   });
 
   it("marks only Phase 0–5 modules as available", () => {
-    const available = flattenNav(navigationFor("admin"))
+    const available = flattenNav(navigationFor("admin", { canPublish: true }))
       .filter((i) => i.available)
       .map((i) => i.key);
     expect(available.sort()).toEqual([
       "academics",
       "access",
       "announcements",
+      "announcements-manage",
       "audit",
       "courses",
       "dashboard",
       "deliveries",
       "faculty",
+      "insights",
       "students",
     ]);
     expect(flattenNav(navigationFor("class")).find((i) => i.key === "parent-communication")?.available).toBe(

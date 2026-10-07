@@ -14,7 +14,7 @@ const PARENT = /(Father|Mother|Guardian) of /;
 
 test("a student reads and acknowledges a critical notice", async ({ page }) => {
   await signInAs(page, /Student · /);
-  await page.goto("/announcements?view=today");
+  await page.goto("/announcements?view=important");
   await page
     .getByRole("link", { name: /heavy rainfall advisory/ })
     .first()
@@ -31,7 +31,7 @@ test("a student reads and acknowledges a critical notice", async ({ page }) => {
 
 test("attachments download only for those who can see the notice", async ({ page, browser }) => {
   await signInAs(page, /Student · /);
-  await page.goto("/announcements?view=jobs");
+  await page.goto("/announcements?view=placements");
   await page.getByRole("link", { name: /Contoso Analytics/ }).click();
   const href = await page
     .getByRole("link", { name: /^Download / })
@@ -72,7 +72,7 @@ test("the class incharge publishes a section notice that reaches the section's f
 
   const parent = await browser.newPage();
   await signInAs(parent, PARENT);
-  await parent.goto("/announcements?view=today");
+  await parent.goto("/announcements?view=important");
   await expect(parent.getByRole("link", { name: /parent-teacher meeting on Saturday/ })).toBeVisible();
   await parent.close();
 });
