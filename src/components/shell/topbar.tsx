@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { markNotificationsReadAction } from "@/app/(app)/announcements/actions";
+import { AskButton } from "@/components/assistant/ask-button";
 import { signOut, switchTenant, switchWorkspace } from "@/app/actions/session";
 import { Button } from "@/components/ui/button";
 import {
@@ -89,7 +90,7 @@ function applyTheme(theme: Theme) {
 }
 
 function ThemeMenu() {
-  const [theme, setTheme] = useState<Theme>("system");
+  const [theme, setTheme] = useState<Theme>("light");
   useEffect(() => {
     try {
       const stored = localStorage.getItem("campusos-theme") as Theme | null;
@@ -169,6 +170,7 @@ export function Topbar({ user, context, workspaces, tenants, notices, alerts, un
         </button>
 
         <div className="ml-auto flex items-center gap-1">
+          <AskButton />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -305,7 +307,7 @@ export function Topbar({ user, context, workspaces, tenants, notices, alerts, un
               )}
               {notices.map((n) => (
                 <DropdownMenuItem key={n.id} asChild>
-                  <Link href={`/announcements?view=today&id=${n.id}`} className="items-start!">
+                  <Link href={`/announcements?view=important&id=${n.id}`} className="items-start!">
                     <span
                       className={cn(
                         "mt-1.5 size-1.5 shrink-0 rounded-full",

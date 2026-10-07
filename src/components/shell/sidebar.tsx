@@ -3,13 +3,21 @@
 import { GraduationCap } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { NavGroup, NavItem } from "@/lib/navigation/nav";
+import type { NavGroup } from "@/lib/navigation/nav";
 import { cn } from "@/lib/utils";
 import { NAV_ICONS } from "./icons";
 
-function isActive(pathname: string, item: NavItem): boolean {
-  if (item.href === "/dashboard") return pathname === "/dashboard";
-  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+function matches(pathname: string, href: string): boolean {
+  if (href === "/dashboard") return pathname === "/dashboard";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** The most specific item wins: /announcements/sent highlights "Announcements", not "Inbox". */
+function activeHref(pathname: string, groups: NavGroup[]): string | undefined {
+  return groups
+    .flatMap((g) => g.items.map((i) => i.href))
+    .filter((href) => matches(pathname, href))
+    .sort((a, b) => b.length - a.length)[0];
 }
 
 export function Brand() {
@@ -33,6 +41,7 @@ export function NavList({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const current = activeHref(pathname, groups);
   return (
     <nav aria-label="Primary" className="flex flex-col gap-5">
       {groups.map((group) => (
@@ -41,7 +50,7 @@ export function NavList({
           <ul className="flex flex-col gap-0.5">
             {group.items.map((item) => {
               const Icon = NAV_ICONS[item.icon];
-              const active = isActive(pathname, item);
+              const active = item.href === current;
               const badge = badges?.[item.key];
               return (
                 <li key={`${group.label}-${item.key}`}>
@@ -97,7 +106,7 @@ export function Sidebar({ groups, badges }: { groups: NavGroup[]; badges?: Recor
         <NavList groups={groups} badges={badges} />
       </div>
       <div className="border-border text-2xs text-subtle border-t px-4 py-3">
-        Phase 1 · Synthetic demo data
+        Synthetic demo data · no real people
       </div>
     </aside>
   );

@@ -2,6 +2,7 @@ import {
   BarChart3,
   BookOpen,
   Briefcase,
+  Calendar,
   CalendarCheck,
   CheckSquare,
   ClipboardList,
@@ -18,6 +19,7 @@ import {
   School,
   ScrollText,
   ShieldCheck,
+  Sparkles,
   User,
   Users,
   Wallet,
@@ -48,4 +50,7 @@ export const NAV_ICONS: Record<IconName, LucideIcon> = {
   folder: Folder,
   key: KeyRound,
   scroll: ScrollText,
+  sparkles: Sparkles,
+  "megaphone-plus": Megaphone,
+  calendar: Calendar,
 };
