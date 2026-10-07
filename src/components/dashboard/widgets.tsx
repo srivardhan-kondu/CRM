@@ -268,7 +268,7 @@ export function NoticeList({ items }: { items: Announcement[] }) {
       {items.map((a) => (
         <li key={a.id}>
           <Link
-            href={`/announcements?view=mine&id=${a.id}`}
+            href={`/announcements?view=all&id=${a.id}`}
             className="hover:bg-surface-muted block px-4 py-3"
           >
             <div className="flex items-center gap-2">

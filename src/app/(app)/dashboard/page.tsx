@@ -1,36 +1,55 @@
 import { UserX } from "lucide-react";
 import type { Metadata } from "next";
 import { AdminDashboard, OperationsDashboard } from "@/components/dashboard/admin-views";
+import { ScopeSelect } from "@/components/dashboard/scope-select";
 import {
+  AnnouncementsAndActivity,
+  AttentionOnly,
   ClassInchargeDashboard,
   FacultyDashboard,
   LeadershipDashboard,
   StudentDashboard,
 } from "@/components/dashboard/views";
 import { ExamsDashboard } from "@/components/exams/dashboard";
-import { PageHeader } from "@/components/patterns/page-header";
-import { EmptyState } from "@/components/patterns/states";
+import { EmptyState } from "@/components/os/empty-state";
+import { academicContext } from "@/domains/academics/context";
 import { linkedStudents } from "@/domains/students/repository";
 import { workspaceFor } from "@/lib/authz/catalogue";
 import { requireAuth } from "@/lib/authz/context";
-import { describeAssignmentScope } from "@/lib/authz/describe";
-import { academicContext } from "@/domains/academics/context";
-import { DEMO_NOW } from "@/lib/demo/fixtures";
+import { coversUnit } from "@/lib/authz/engine";
+import { depthFirst } from "@/lib/authz/org-tree";
+import { institutionNow } from "@/lib/clock";
 
-export const metadata: Metadata = { title: "Dashboard" };
+export const metadata: Metadata = { title: "Home" };
 
-const dateLabel = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(
-  DEMO_NOW,
-);
+const dateLabel = (d: Date) =>
+  new Intl.DateTimeFormat("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "Asia/Kolkata",
+  }).format(d);
 
-export default async function DashboardPage() {
+function greeting(d: Date) {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-IN", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(d),
+  );
+  return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+}
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const authed = await requireAuth();
   const { ctx, tree } = authed;
   // Pages render alongside the layout, so each must handle "no role" itself (the layout shows the message).
   const active = ctx.active;
   if (!active) return null;
   const workspace = workspaceFor(active.roleKey);
-  const unit = tree.byId.get(active.orgUnitId) ?? tree.root;
+  const home = tree.byId.get(active.orgUnitId) ?? tree.root;
+  const now = institutionNow();
   const firstName = ctx.name.replace(/^(Dr\.|Prof\.|Mr\.|Ms\.)\s+/, "").split(" ")[0];
   const linked =
     workspace === "self"
@@ -40,60 +59,83 @@ export default async function DashboardPage() {
         : [];
   const context = await academicContext(ctx);
 
-  const heading = {
-    admin: { title: `Welcome, ${firstName}`, description: `Access control health for ${ctx.tenantName}.` },
-    leadership: {
-      title: `Good morning, ${firstName}`,
-      description: "Institution pulse — what's abnormal today and where to act.",
-    },
-    department: {
-      title: `Good morning, ${firstName}`,
-      description: "Department health across sections, with students that need attention.",
-    },
-    class: {
-      title: `My class · ${unit.name.replace(/^Section /, "")}`,
-      description: "Today's sessions, students to follow up, and class notices.",
-    },
-    teaching: {
-      title: "My classes",
-      description: "Today's teaching schedule and subject-level attendance for your courses.",
-    },
-    self: { title: `Hi, ${firstName}`, description: "Your attendance, progress and what needs your action." },
-    guardian: {
-      title: linked[0] ? `${linked[0].student.name.split(" ")[0]}'s progress` : "Your child's progress",
-      description: "Attendance, academics, fees and notices for your linked student.",
-    },
-    examinations: {
-      title: `Good morning, ${firstName}`,
-      description: "Examinations in progress, results to publish and decisions waiting on the exam cell.",
-    },
-    operations: { title: `Welcome, ${firstName}`, description: `${active.roleName} workspace.` },
+  // Leaders may look at any campus, school or department inside their own scope; anything else falls back to home.
+  const leader = workspace === "leadership" || workspace === "department";
+  const scopes = leader
+    ? depthFirst(tree).filter(
+        (n) =>
+          (n.id === home.id || ["campus", "school", "department"].includes(n.type)) &&
+          coversUnit(active, n, tree),
+      )
+    : [];
+  const requested = (await searchParams).scope;
+  const unit = (typeof requested === "string" && scopes.find((n) => n.code === requested)) || home;
+
+  const title = {
+    admin: `${greeting(now)}, ${firstName}`,
+    leadership: `${greeting(now)}, ${firstName}`,
+    department: `${greeting(now)}, ${firstName}`,
+    class: `${greeting(now)}, ${firstName}`,
+    teaching: `${greeting(now)}, ${firstName}`,
+    self: `${greeting(now)}, ${firstName}`,
+    guardian: linked[0] ? `${linked[0].student.name.split(" ")[0]}'s day` : "Your child's day",
+    examinations: `${greeting(now)}, ${firstName}`,
+    operations: `${greeting(now)}, ${firstName}`,
+  }[workspace];
+  const purpose = {
+    admin: "Access control and platform health.",
+    leadership: "How the campus is doing, what needs attention, and what to do next.",
+    department: "Department health, students who need attention, and decisions waiting on you.",
+    class: `Your class, ${home.name.replace(/^Section /, "")}: health, today's classes and students to follow up.`,
+    teaching: "Today's classes, attendance to mark, and students falling behind in your courses.",
+    self: "What needs your attention today.",
+    guardian: "Attendance, exams and messages for your child.",
+    examinations: "Examinations in progress and decisions waiting on the exam cell.",
+    operations: `${active.roleName} workspace.`,
   }[workspace];
 
   return (
-    <>
-      <PageHeader
-        title={heading.title}
-        description={heading.description}
-        actions={
-          <p className="text-muted text-xs">
-            {dateLabel} · {context.term} · {active.roleName}, {describeAssignmentScope(active, tree)}
+    <div className="animate-page-in">
+      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-muted text-xs font-medium">
+            {dateLabel(now)} · {context.term}
           </p>
-        }
-      />
+          <h1 className="text-foreground mt-1 text-2xl font-semibold tracking-tight">{title}</h1>
+          <p className="text-muted mt-1 text-sm">{purpose}</p>
+        </div>
+        {scopes.length > 1 && (
+          <ScopeSelect
+            value={unit.code}
+            options={scopes.map((n) => ({
+              code: n.code,
+              label: n.type === "institution" ? `${n.name} (whole institution)` : n.name,
+            }))}
+          />
+        )}
+      </header>
+
       {workspace === "admin" ? (
-        <AdminDashboard authed={authed} />
-      ) : workspace === "leadership" || workspace === "department" ? (
-        <LeadershipDashboard authed={authed} unit={unit} />
+        <div className="space-y-6">
+          <AttentionOnly authed={authed} workspace={workspace} unit={unit} />
+          <AdminDashboard authed={authed} />
+          <AnnouncementsAndActivity authed={authed} />
+        </div>
+      ) : leader ? (
+        <LeadershipDashboard authed={authed} unit={unit} workspace={workspace} />
       ) : workspace === "class" ? (
-        <ClassInchargeDashboard authed={authed} unit={unit} />
+        <ClassInchargeDashboard authed={authed} unit={home} />
       ) : workspace === "teaching" ? (
-        <FacultyDashboard authed={authed} />
+        <FacultyDashboard authed={authed} unit={home} />
       ) : workspace === "examinations" ? (
-        <ExamsDashboard authed={authed} />
+        <div className="space-y-6">
+          <AttentionOnly authed={authed} workspace={workspace} unit={unit} />
+          <ExamsDashboard authed={authed} />
+          <AnnouncementsAndActivity authed={authed} />
+        </div>
       ) : workspace === "self" || workspace === "guardian" ? (
         linked[0] ? (
-          <StudentDashboard authed={authed} record={linked[0]} />
+          <StudentDashboard authed={authed} record={linked[0]} workspace={workspace} />
         ) : (
           <EmptyState
             icon={UserX}
@@ -102,8 +144,11 @@ export default async function DashboardPage() {
           />
         )
       ) : (
-        <OperationsDashboard authed={authed} />
+        <div className="space-y-6">
+          <AttentionOnly authed={authed} workspace={workspace} unit={unit} />
+          <OperationsDashboard authed={authed} />
+        </div>
       )}
-    </>
+    </div>
   );
 }

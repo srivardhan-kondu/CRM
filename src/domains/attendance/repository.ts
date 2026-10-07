@@ -623,3 +623,39 @@ export async function studentAttendance(authed: Authed, v: Visible) {
     now: institutionToday(),
   };
 }
+
+export interface TimetableEntry {
+  weekday: number;
+  startsAt: string;
+  endsAt: string;
+  room: string;
+  courseCode: string;
+  courseName: string;
+  teachers: string[];
+}
+
+/** A section's weekly timetable for the current term (slots in effect today), for students and guardians. */
+export async function weeklyTimetable(authed: Authed, sectionCode: string): Promise<TimetableEntry[] | null> {
+  const c = await attendanceContext(authed);
+  if (!c) return null;
+  const offerings = [...c.offerings.values()].filter((o) => o.sectionCode === sectionCode);
+  const byId = new Map(offerings.map((o) => [o.id, o]));
+  const today = c.now.date;
+  return (await slotsFor(authed.ctx.tenantId, c.term.id))
+    .filter(
+      (s) => byId.has(s.offeringId) && s.effectiveFrom <= today && (!s.effectiveTo || s.effectiveTo >= today),
+    )
+    .map((s) => {
+      const o = byId.get(s.offeringId)!;
+      return {
+        weekday: s.weekday,
+        startsAt: s.startsAt,
+        endsAt: s.endsAt,
+        room: s.room,
+        courseCode: o.courseCode,
+        courseName: o.courseName,
+        teachers: o.allocations.map((a) => a.name),
+      };
+    })
+    .sort((a, b) => a.weekday - b.weekday || a.startsAt.localeCompare(b.startsAt));
+}
